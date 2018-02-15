@@ -108,6 +108,7 @@ venv.bak/
 *.annoVarInput.txt
 *.avinput
 /test/*.avinput
+/Samples/
 
 .idea
 .DS_Store
