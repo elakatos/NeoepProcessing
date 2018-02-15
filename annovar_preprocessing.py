@@ -31,13 +31,17 @@ def processTableFile(tableFile, normalindex):
 def processAllFiles(sampleListFile):
     with open(sampleListFile, 'r') as slFile:
         for line in slFile:
-            tableFile = line.strip('\n').split('\t')[0]
-            normIndex = int(line.strip('\n').split('\t')[1])
+            tableFile = line.rstrip('\n').split('\t')[0]
+            normIndex = int(line.rstrip('\n').split('\t')[1])
             print("Processing file %s with normal sample at %s" %(tableFile, normIndex))
             processedLines = processTableFile(tableFile, normIndex)
             outfileName = tableFile.replace('.annoVarInput.txt','.avinput')
-            outfile = open(outfileName, 'w')
-            outfile.write(('\n').join(processedLines))
-            outfile.close()
+            with open(outfileName, 'w') as outfile:
+                outfile.write(('\n').join(processedLines))
             print("Processed file saved at %s" %(outfileName))
+
+            #Create decoy VCF file
+            vcffileName = outfileName.replace('.avinput', '.vcf')
+            with open(vcffileName, 'w') as decoyvcf:
+                decoyvcf.write("#VCF - none\n Annovar ready sample: "+outfileName)
 

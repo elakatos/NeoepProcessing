@@ -1,4 +1,4 @@
-import unittest
+import unittest, os
 
 from annovar_preprocessing import getPairedNumbers, normalToZero, fillInfo, processTableFile, processAllFiles
 
@@ -24,6 +24,8 @@ class TestProcessing(unittest.TestCase):
         self.assertEqual("1	6659494	6659494	C	T	.	.	.	.	.	.	.	.	.	.	.	NR:NV	56:0	79:16	80:21	42:0	68:8", outputlines[0])
 
     def test_multiple_sample(self):
+        os.system('rm test/example*.avinput')
+        os.system('rm test/example*.vcf')
         samplelist = "test/sample_list.tsv"
         processAllFiles(samplelist)
         with open("test/example2.avinput", 'r') as testof:
@@ -31,6 +33,8 @@ class TestProcessing(unittest.TestCase):
 
         self.assertEqual('NR:NV' , lines[0].split('\t')[16])
         self.assertEqual('30:0', lines[1].split('\t')[17])
+        self.assertEqual(True, os.path.isfile("test/example1.vcf"))
+
 
 
 
