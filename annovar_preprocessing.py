@@ -35,7 +35,7 @@ def processAllFiles(sampleListFile):
             normIndex = int(line.strip('\n').split('\t')[1])
             print("Processing file %s with normal sample at %s" %(tableFile, normIndex))
             processedLines = processTableFile(tableFile, normIndex)
-            outfileName = tableFile.split('_')[0]+'_processed.avinput'
+            outfileName = tableFile.rstrip('annoVarInput.txt')+'.avinput'
             outfile = open(outfileName, 'w')
             outfile.write(('\n').join(processedLines))
             outfile.close()

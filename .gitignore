@@ -104,5 +104,10 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+# local input and output files
+./*.txt
+./*.avinput
+/test/*.avinput
+
 .idea
 .DS_Store

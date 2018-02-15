@@ -18,7 +18,7 @@ class TestProcessing(unittest.TestCase):
         self.assertEqual('NR:NV', fillInfo(oneline)[16])
 
     def test_one_file(self):
-        onefile = "test/example1_table.avinput"
+        onefile = "test/example1.annoVarInput.txt"
         outputlines = processTableFile(onefile, 4)
         self.assertEqual("54:0", outputlines[3].split('\t')[17])
         self.assertEqual("1	6659494	6659494	C	T	.	.	.	.	.	.	.	.	.	.	.	NR:NV	56:0	79:16	80:21	42:0	68:8", outputlines[0])
@@ -26,7 +26,7 @@ class TestProcessing(unittest.TestCase):
     def test_multiple_sample(self):
         samplelist = "test/sample_list.tsv"
         processAllFiles(samplelist)
-        with open("test/example2_processed.avinput", 'r') as testof:
+        with open("test/example2.avinput", 'r') as testof:
             lines = testof.readlines()
 
         self.assertEqual('NR:NV' , lines[0].split('\t')[16])
