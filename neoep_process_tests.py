@@ -1,7 +1,7 @@
 import unittest, os
 
 from annovar_preprocessing import getPairedNumbers, normalToZero, fillInfo, processTableFile, processAllFiles
-from hla_preprocessing import readInHLAwinners
+from hla_preprocessing import readInHLAwinners, composeHLAFile
 
 
 class TestProcessing(unittest.TestCase):
@@ -50,6 +50,16 @@ class TestProcessing(unittest.TestCase):
         onefolder = "test/hla_2"
         correctAlleleList = ['hla_a_01_01_01_01','NA','hla_b_38_01_01','hla_b_14_02_01', 'hla_c_12_03_01_01', 'NA']
         self.assertEqual(correctAlleleList, readInHLAwinners(onefolder))
+
+    def test_make_hlafile(self):
+        os.system("rm hlatypes.txt")
+        samplelist = "test/hla_sample_list.tsv"
+        composeHLAFile(samplelist)
+        with open("hlatypes.txt", 'r') as testof:
+            lines = testof.readlines()
+
+        correctLine = "Test2\thla_a_01_01_01_01\tNA\thla_b_38_01_01\thla_b_14_02_01\thla_c_12_03_01_01\tNA"
+        self.assertEqual(correctLine, lines[2].rstrip('\n') )
 
 
 
