@@ -1,3 +1,3 @@
 import annovar_preprocessing as prep
 
-prep.processAllFiles("test/sample_list.tsv")
+prep.processAllFiles("Samples/sample_list.tsv")
