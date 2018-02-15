@@ -15,7 +15,10 @@ def getPairedNumbers(line):
     return(pairedNumbers)
 
 def normalToZero(numberarray, normalindex):
-    numberarray.insert(0, numberarray.pop(normalindex))
+    try:
+        numberarray.insert(0, numberarray.pop(normalindex))
+    except IndexError:
+        print("WARNING: There is no %sth column, columns are not rearranged, pay attention at later analysis." %normalindex)
     return(numberarray)
 
 def processTableFile(tableFile, normalindex):

@@ -13,6 +13,10 @@ class TestProcessing(unittest.TestCase):
         pairs = ['20:11', '30:9', '40:6', '50:5', '60:0']
         self.assertEqual(['60:0', '20:11', '30:9', '40:6', '50:5'], normalToZero(pairs, 4))
 
+    def test_normal_rearrange(self):
+        pairs = ['20:11', '30:9', '40:6', '50:5']
+        self.assertEqual(pairs, normalToZero(pairs, 4))
+
     def test_fill_in_info(self):
         oneline = "1\t2\t3\tC\tT\t20\t30\t40\t50\t60\t11\t9\t6\t5\t0"
         self.assertEqual('NR:NV', fillInfo(oneline)[16])
