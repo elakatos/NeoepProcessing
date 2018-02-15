@@ -1,6 +1,7 @@
 import unittest, os
 
 from annovar_preprocessing import getPairedNumbers, normalToZero, fillInfo, processTableFile, processAllFiles
+from hla_preprocessing import readInHLAwinners
 
 
 class TestProcessing(unittest.TestCase):
@@ -25,7 +26,8 @@ class TestProcessing(unittest.TestCase):
         onefile = "test/example1.annoVarInput.txt"
         outputlines = processTableFile(onefile, 4)
         self.assertEqual("54:0", outputlines[3].split('\t')[17])
-        self.assertEqual("1	6659494	6659494	C	T	.	.	.	.	.	.	.	.	.	.	.	NR:NV	56:0	79:16	80:21	42:0	68:8", outputlines[0])
+        correctLine = "1	6659494	6659494	C	T	.	.	.	.	.	.	.	.	.	.	.	NR:NV	56:0	79:16	80:21	42:0	68:8"
+        self.assertEqual(correctLine, outputlines[0])
 
     def test_multiple_sample(self):
         os.system('rm test/example*.avinput')
@@ -38,6 +40,16 @@ class TestProcessing(unittest.TestCase):
         self.assertEqual('NR:NV' , lines[0].split('\t')[16])
         self.assertEqual('30:0', lines[1].split('\t')[17])
         self.assertEqual(True, os.path.isfile("test/example1.vcf"))
+
+    def test_read_in_hla(self):
+        onefolder = "test/hla_1"
+        correctAlleleList = ['hla_a_01_01_01_01','hla_a_29_01_01_01','hla_b_38_01_01','hla_b_14_02_01', 'hla_c_12_03_01_01', 'hla_c_08_02_01']
+        self.assertEqual(correctAlleleList, readInHLAwinners(onefolder))
+
+    def test_read_in_hla_NA(self):
+        onefolder = "test/hla_2"
+        correctAlleleList = ['hla_a_01_01_01_01','NA','hla_b_38_01_01','hla_b_14_02_01', 'hla_c_12_03_01_01', 'NA']
+        self.assertEqual(correctAlleleList, readInHLAwinners(onefolder))
 
 
 
