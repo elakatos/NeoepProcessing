@@ -11,8 +11,9 @@ def readInHLAwinners(hladir):
                 hlaList.append('NA')
     return(hlaList)
 
-def composeHLAFile(sampleListFile):
-    with open('hlatypes.txt', 'w') as outFile:
+def composeHLAFile(sampleListFile, outdir):
+    outFileName = outdir+'hlatypes.txt'
+    with open(outFileName, 'w') as outFile:
         outFile.write('Patient\tHLA-A_1\tHLA-A_2\tHLA-B_1\tHLA-B_2\tHLA-C_1\tHLA-C_2\n')
         with open(sampleListFile, 'r') as slFile:
             for sample in slFile.readlines():

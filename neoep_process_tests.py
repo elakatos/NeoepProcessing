@@ -54,7 +54,7 @@ class TestProcessing(unittest.TestCase):
     def test_make_hlafile(self):
         os.system("rm hlatypes.txt")
         samplelist = "test/hla_sample_list.tsv"
-        composeHLAFile(samplelist)
+        composeHLAFile(samplelist, "./")
         with open("hlatypes.txt", 'r') as testof:
             lines = testof.readlines()
 
