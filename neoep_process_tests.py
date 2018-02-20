@@ -64,8 +64,10 @@ class TestProcessing(unittest.TestCase):
 
     def test_run_peptide_check(self):
         oneline = 'Set.09.Proximal.snv\t1\t1\t1\t1\t1\t-1\t-1\t-1\t-1\t-1\t-1\t-1\t-1\tline15\t1\t1403821\tG\tA\tATAD3C:NM_001039211\t4\tHLA-A*01:01\tMMDACMQDF\tMMDACMQDF\t0\t0\t0\t0\t0\tMMDACMQDF\tline15_NM_00103\t0.1579180\t1.5976\t<=\tWB'
+        secondline = 'Set.09.Proximal.snv\t1\t1\t1\t1\t1\t-1\t-1\t-1\t-1\t-1\t-1\t-1\t-1\tline15\t1\t1403821\tG\tA\tATAD3C:NM_001039211\t4\tHLA-A*01:01\tLPVTDTSSE\tMMDACMQDF\t0\t0\t0\t0\t0\tMMDACMQDF\tline15_NM_00103\t0.1579180\t1.5976\t<=\tWB'
 
         self.assertEqual( 1, CheckPeptideNovelty(oneline))
+        self.assertEqual( 0, CheckPeptideNovelty(secondline))
 
 
 

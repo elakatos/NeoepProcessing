@@ -6,9 +6,9 @@ oneline = 'Set.09.Proximal.snv\t1\t1\t1\t1\t1\t-1\t-1\t-1\t-1\t-1\t-1\t-1\t-1\tl
 def CheckPeptideNovelty(line):
     peptide = line.split('\t')[-13]
     with open('peptidematch.tmp.log', 'w') as logFile:
-    	cmd = ['java', '-jar', '/data/home/hfx365/Software/PeptideMatchCMD_1.0.jar', '-a', 'query', '-i', '/data/home/hfx365/Reference/Ensembl/index/','-q', peptide, '-o', 'tmp_peptidematch.out']
-    	runcmd = subprocess.Popen(cmd, stdout=logFile)
-    	runcmd.wait()
+        cmd = ['java', '-jar', '/data/home/hfx365/Software/PeptideMatchCMD_1.0.jar', '-a', 'query', '-i', '/data/home/hfx365/Reference/Ensembl/index/','-q', peptide, '-o', 'tmp_peptidematch.out']
+        runcmd = subprocess.Popen(cmd, stdout=logFile)
+        runcmd.wait()
 
     with open('tmp_peptidematch.out', 'r') as pmFile:
         lines = pmFile.readlines()
