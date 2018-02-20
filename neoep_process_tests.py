@@ -2,6 +2,7 @@ import unittest, os
 
 from annovar_preprocessing import getPairedNumbers, normalToZero, fillInfo, processTableFile, processAllFiles
 from hla_preprocessing import readInHLAwinners, composeHLAFile
+from antigen_novelty import CheckPeptideNovelty
 
 
 class TestProcessing(unittest.TestCase):
@@ -61,6 +62,10 @@ class TestProcessing(unittest.TestCase):
         correctLine = "Test2\thla_a_01_01_01_01\tNA\thla_b_38_01_01\thla_b_14_02_01\thla_c_12_03_01_01\tNA"
         self.assertEqual(correctLine, lines[2].rstrip('\n') )
 
+    def test_make_fasta_entry(self):
+        oneline = 'Set.09.Proximal.snv\t1\t1\t1\t1\t1\t-1\t-1\t-1\t-1\t-1\t-1\t-1\t-1\tline15\t1\t1403821\tG\tA\tATAD3C:NM_001039211\t4\tHLA-A*01:01\tMMDACMQDF\tMMDACMQDF\t0\t0\t0\t0\t0\tMMDACMQDF\tline15_NM_00103\t0.1579180\t1.5976\t<=\tWB'
+
+        self.assertEqual( 1, CheckPeptideNovelty(oneline))
 
 
 

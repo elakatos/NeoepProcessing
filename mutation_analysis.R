@@ -46,7 +46,8 @@ getPeptideFasta <- function(x, outFileName){
 
 
 dir <- '~/CRCdata/CRCmseq_Set'
-epTable <- read.table(paste0(dir, '/Neopred_results/CRCmseq.neoantigens.txt'), header=F, stringsAsFactors = F)
+epTable <- read.table(paste0(dir, '/Neopred_results/CRCmseq.neoantigens.unfiltered.txt'), header=F,
+                      sep = '\t',stringsAsFactors = F, fill=T)
 names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-22), 'LineID', 'Chrom', 'Start',
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
                     'Gl', 'Ip', 'Il', 'Icore', 'ID', 'Score', 'Rank', 'Cand', 'BindLevel')
@@ -70,7 +71,7 @@ for (i in tumorColumns){
 }
 dev.off()
 
-getPeptideFasta(eps, paste0(dir,'/tmp/',sample,'.all_eps.fasta'))
+getPeptideFasta(eps, paste0(dir,'/tmp/',sample,'.unfilt.all_eps.fasta'))
 
 # Epitope distribution ----------------------------------------------------
 
