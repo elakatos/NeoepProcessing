@@ -39,6 +39,11 @@ computeVaf <- function(readData, colInd){
   return(vafs)
 }
 
+getPeptideFasta <- function(x, outFileName){
+  y <- sapply(1:nrow(x), function(z) cat('>',x[z,'LineID'],'-',x[z,'peptide'],'\n',
+                                    x[z,'peptide'],'\n', file=outFileName, append=T, sep=''))
+}
+
 
 dir <- '~/CRCdata/CRCmseq_Set'
 epTable <- read.table(paste0(dir, '/Neopred_results/CRCmseq.neoantigens.txt'), header=F, stringsAsFactors = F)
@@ -46,7 +51,7 @@ names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-22), 'LineID', 'Chrom
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
                     'Gl', 'Ip', 'Il', 'Icore', 'ID', 'Score', 'Rank', 'Cand', 'BindLevel')
 
-sample = 'Set.07.snv'
+sample = 'Set.01.snv'
 sampleFile <- paste0(dir, '/avready/',sample,'.avinput')
 sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
 avinput <- readAvinput(sampleFile)
@@ -65,3 +70,8 @@ for (i in tumorColumns){
 }
 dev.off()
 
+getPeptideFasta(eps, paste0(dir,'/tmp/',sample,'.all_eps.fasta'))
+
+# Epitope distribution ----------------------------------------------------
+
+hist(-log(eps$Rank), breaks=50  )
