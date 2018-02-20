@@ -14,5 +14,4 @@ def CheckPeptideNovelty(line):
         lines = pmFile.readlines()
     match = lines[2].strip('\n').split('\t')[1]
     novel = int(match =='No match')
-    print(match)
     return(novel)
