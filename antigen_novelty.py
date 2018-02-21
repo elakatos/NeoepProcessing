@@ -1,8 +1,6 @@
 
 import subprocess
 
-oneline = 'Set.09.Proximal.snv\t1\t1\t1\t1\t1\t-1\t-1\t-1\t-1\t-1\t-1\t-1\t-1\tline15\t1\t1403821\tG\tA\tATAD3C:NM_001039211\t4\tHLA-A*01:01\tMMDACMQDF\tMMDACMQDF\t0\t0\t0\t0\t0\tMMDACMQDF\tline15_NM_00103\t0.1579180\t1.5976\t<=\tWB'
-
 def CheckPeptideNovelty(line):
     peptide = line.split('\t')[-13]
     with open('peptidematch.tmp.log', 'w') as logFile:
@@ -15,3 +13,11 @@ def CheckPeptideNovelty(line):
     match = lines[2].strip('\n').split('\t')[1]
     novel = int(match =='No match')
     return(novel)
+
+def ProcessPepmatch(file):
+    with open(file, 'r') as pmFile:
+        pmFile.readline()
+        pmFile.readline() #read first two header lines
+        pmDict = {line.split('\t')[0] : line.split('\t')[1].rstrip('\n') for line in pmFile.readlines() }
+
+    return(pmDict)
