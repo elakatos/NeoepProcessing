@@ -2,7 +2,7 @@ import unittest, os
 
 from annovar_preprocessing import getPairedNumbers, normalToZero, fillInfo, processTableFile, processAllFiles
 from hla_preprocessing import readInHLAwinners, composeHLAFile
-from antigen_novelty import CheckPeptideNovelty, ProcessPepmatch
+from antigen_novelty import ProcessPepmatch, RunPepmatch
 
 
 class TestProcessing(unittest.TestCase):
@@ -62,11 +62,31 @@ class TestProcessing(unittest.TestCase):
         correctLine = "Test2\thla_a_01_01_01_01\tNA\thla_b_38_01_01\thla_b_14_02_01\thla_c_12_03_01_01\tNA"
         self.assertEqual(correctLine, lines[2].rstrip('\n') )
 
+    def test_run_pepmatch(self):
+        with open('test/example.eplines', 'r') as epfile:
+            eplines = [ line.rstrip('\n') for line in epfile.readlines()]
+        RunPepmatch(eplines, '/data/home/hfx365/Software/PeptideMatchCMD_1.0.jar', '/data/home/hfx365/Reference/Ensembl/index/', 'tmp_pepmatch.out')
+        with open('peptidematch.tmp.input', 'r') as pminput:
+            pmlines = pminput.readlines()
+
+        appendedlines = ['6\tHLA-C*07:02\tTLASKITGM\tTLASKITGM\t0\t0\t0\t0\t0\tTLASKITGM\tline195_NM_0025\t0.1744960\t1.6035\t1',
+                         '6\tHLA-C*07:02\tASKITGMLL\tTLASKITGM\t0\t0\t0\t0\t0\tTLASKITGM\tline195_NM_0025\t0.1744960\t1.6035\t<=\tWB\t0',
+                         '6\tHLA-C*07:02\tSKITGMLLE\tTLASKITGM\t0\t0\t0\t0\t0\tTLASKITGM\tline195_NM_0025\t0.1744960\t1.6035\t<=\tWB\t0',
+                         '6\tHLA-C*07:02\tRLFPLIQAL\tTLASKITGM\t0\t0\t0\t0\t0\tTLASKITGM\tline196_NM_0025\t0.1744960\t1.6035\t<=\tWB\t1']
+
+        self.assertEqual( ('>line196_NM_0025;RLFPLIQAL','RLFPLIQAL'), (pmlines[6].rstrip('\n'), pmlines[7].rstrip('\n')) )
+        self.assertEqual( appendedlines, ProcessPepmatch('tmp_pepmatch.out', eplines) )
+
+
     def test_read_pepmatch_file(self):
         pmfileName = 'test/example_pepmatch.out'
-        pmDict = ProcessPepmatch(pmfileName)
-        correctValues = ('No match', 'ENSP00000429084.1', 'ENSP00000429084.1', 'No match')
-        self.assertEqual(correctValues, (pmDict['line195_NM_0025;TLASKITGM'],pmDict['line195_NM_0025;ASKITGMLL'],pmDict['line195_NM_0025;SKITGMLLE'], pmDict['line196_NM_0025;RLFPLIQAL']))
+        with open('test/example.eplines', 'r') as epfile:
+            eplines = [ line.rstrip('\n') for line in epfile.readlines()]
+        appendedlines = ['6\tHLA-C*07:02\tTLASKITGM\tTLASKITGM\t0\t0\t0\t0\t0\tTLASKITGM\tline195_NM_0025\t0.1744960\t1.6035\t1',
+                         '6\tHLA-C*07:02\tASKITGMLL\tTLASKITGM\t0\t0\t0\t0\t0\tTLASKITGM\tline195_NM_0025\t0.1744960\t1.6035\t<=\tWB\t0',
+                         '6\tHLA-C*07:02\tSKITGMLLE\tTLASKITGM\t0\t0\t0\t0\t0\tTLASKITGM\tline195_NM_0025\t0.1744960\t1.6035\t<=\tWB\t0',
+                         '6\tHLA-C*07:02\tRLFPLIQAL\tTLASKITGM\t0\t0\t0\t0\t0\tTLASKITGM\tline196_NM_0025\t0.1744960\t1.6035\t<=\tWB\t1']
+        self.assertEqual(appendedlines, ProcessPepmatch(pmfileName, eplines))
 
 
 
