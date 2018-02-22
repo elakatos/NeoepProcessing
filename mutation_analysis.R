@@ -45,14 +45,17 @@ getPeptideFasta <- function(x, outFileName){
 }
 
 
-dir <- '~/CRCdata/CRCmseq_Set'
-epTable <- read.table(paste0(dir, '/Neopred_results/CRCmseq.neoantigens.unfiltered.txt'), header=F,
+dir <- '~/RNAseq/Neoepitopes/CRCmseq_Set'
+epTable <- read.table(paste0(dir, '/Neopred_results/CRCmseq.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
-names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-22), 'LineID', 'Chrom', 'Start',
+names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
-                    'Gl', 'Ip', 'Il', 'Icore', 'ID', 'Score', 'Rank', 'Cand', 'BindLevel')
+                    'Gl', 'Ip', 'Il', 'Icore', 'ID', 'Score', 'Rank', 'Cand', 'BindLevel', 'Novelty')
+epNon <- epTable[epTable$Novelty==0,]
+epTable <- epTable[epTable$Novelty]
+barplot(table(epNon$Sample)/table(epTable$Sample)*100, las=2)
 
-sample = 'Set.01.snv'
+sample = 'Set.02.snv'
 sampleFile <- paste0(dir, '/avready/',sample,'.avinput')
 sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
 avinput <- readAvinput(sampleFile)
@@ -75,4 +78,5 @@ getPeptideFasta(eps, paste0(dir,'/tmp/',sample,'.unfilt.all_eps.fasta'))
 
 # Epitope distribution ----------------------------------------------------
 
-hist(-log(eps$Rank), breaks=50  )
+tumorColumns = grep('Region*', names(eps))
+hist(eps[rowSums(eps[, tumorColumns])==5,]$Rank, breaks=50  )

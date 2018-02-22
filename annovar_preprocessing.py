@@ -31,6 +31,15 @@ def processTableFile(tableFile, normalindex):
             outputLines.append(('\t').join(infoArray)+'\t'+('\t').join(rearArray))
     return(outputLines)
 
+def processSomaticCallFile(tableFile):
+    outputLines = []
+    with open(tableFile, 'r') as inFile:
+        inFile.readline()
+        for line in inFile:
+            linespl = line.rstrip('\n').split('\t')
+            outputLines.append(('\t').join(linespl[1:3])+'\t'+linespl[2]+'\t'+('\t').join(linespl[3:]))
+    return(outputLines)
+
 def processAllFiles(sampleListFile):
     with open(sampleListFile, 'r') as slFile:
         for line in slFile:
@@ -39,6 +48,21 @@ def processAllFiles(sampleListFile):
             print("Processing file %s with normal sample at %s" %(tableFile, normIndex))
             processedLines = processTableFile(tableFile, normIndex)
             outfileName = tableFile.replace('.annoVarInput.txt','.avinput')
+            with open(outfileName, 'w') as outfile:
+                outfile.write(('\n').join(processedLines))
+            print("Processed file saved at %s" %(outfileName))
+
+            #Create decoy VCF file
+            vcffileName = outfileName.replace('.avinput', '.vcf')
+            with open(vcffileName, 'w') as decoyvcf:
+                decoyvcf.write("#VCF - none\n Annovar ready sample: "+outfileName)
+
+def processAllFilesSomatic(sampleListFile):
+    with open(sampleListFile, 'r') as slFile:
+        for line in slFile:
+            tableFile = line.rstrip('\n')
+            processedLines = processSomaticCallFile(tableFile)
+            outfileName = tableFile.split('.')[0]+'.avinput'
             with open(outfileName, 'w') as outfile:
                 outfile.write(('\n').join(processedLines))
             print("Processed file saved at %s" %(outfileName))
