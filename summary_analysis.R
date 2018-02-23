@@ -1,5 +1,13 @@
 
-dir <- '~/CRCdata/CRCmseq_Polyp'
+dir <- '~/RNAseq/Neoepitopes/CRCmseq_Polyp'
+epTable <- read.table(paste0(dir, '/Neopred_results/CRCmseq.neoantigens.txt'), header=F,
+                      sep = '\t',stringsAsFactors = F, fill=T)
+names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
+                    'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
+                    'Gl', 'Ip', 'Il', 'Icore', 'ID', 'Score', 'Rank', 'Cand', 'BindLevel', 'Novelty')
+epNon <- epTable[epTable$Novelty==0,]
+epTable <- epTable[epTable$Novelty!=0,]
+
 summaryTable <- read.table(paste0(dir,'/Neopred_results/CRCmseq.neoantigens.summarytable.txt'), header=T, row.names=1)
 
 barcolors = c('firebrick', 'darkorange3', 'goldenrod1')
@@ -17,5 +25,87 @@ cor.test(summaryTable$Shared/summaryTable$Total, log(summaryTable$Total))
 
 # Generate summary table for MUTATIONS ------------------------------------
 
+getStats <- function(eps, sample, table){
+  tumorColumns = grep('Region*', names(eps))
+  eps = eps[!duplicated(eps$LineID),]
+  table[sample, 'Total'] = nrow(eps)
+  table[sample, 'Total_WB'] = sum(eps$BindLevel=='WB')
+  table[sample, 'Total_SB'] = sum(eps$BindLevel=='SB')
+  for (region in (names(eps)[tumorColumns])){
+    table[sample, paste0('Total_',region)] = sum(eps[,region]==1)
+    table[sample, paste0('Total_WB_',region)] = sum((eps[,region]==1) * (eps$BindLevel=='WB'))
+    table[sample, paste0('Total_SB_',region)] = sum((eps[,region]==1) * (eps$BindLevel=='SB'))
+  }
+  clonaleps = eps[rowSums(eps[,tumorColumns])==length(tumorColumns),]
+  nonclonaleps = eps[rowSums(eps[,tumorColumns])!=length(tumorColumns),]
+  table[sample, 'Clonal'] = nrow(clonaleps)
+  table[sample, 'Clonal_WB'] = sum(clonaleps$BindLevel=='WB')
+  table[sample, 'Clonal_SB'] = sum(clonaleps$BindLevel=='SB')
+  sharedeps = nonclonaleps[rowSums(nonclonaleps[,tumorColumns])>1,]
+  subclonaleps = nonclonaleps[rowSums(nonclonaleps[,tumorColumns])==1,]
+  table[sample, 'Shared'] = nrow(sharedeps)
+  table[sample, 'Shared_WB'] = sum(sharedeps$BindLevel=='WB')
+  table[sample, 'Shared_SB'] = sum(sharedeps$BindLevel=='SB')
+  table[sample, 'Subclonal'] = nrow(subclonaleps)
+  table[sample, 'Subclonal_WB'] = sum(subclonaleps$BindLevel=='WB')
+  table[sample, 'Subclonal_SB'] = sum(subclonaleps$BindLevel=='SB')
+  
+  return(table)
+}
 
-#aggregate(epTable$V2, by = list(epTable$V1), FUN=sum)
+getTotalMut <- function(dir, sample, region=''){
+  sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
+  exonic <- readExonicFile(sampleFileEx)
+  if (region!=''){
+    regionMut <- as.numeric(map(strsplit(exonic[,region], ':'),2))>0
+    exonic <- exonic[regionMut,]
+  }
+  return(nrow(exonic))
+}
+
+summaryTableMut <- summaryTable
+for (sample in row.names(summaryTableMut)){
+  eps <- subsetEpTable(epTable, sample)
+  summaryTableMut <- getStats(eps, sample, summaryTableMut)
+}
+
+#What's the ratio between produced neoepitopes and mutations
+barplot(summaryTable$Total/summaryTableMut$Total)
+
+#What's the distribution of neoepitopes per mutation
+summaryTableMut$Total_MUT <- sapply(row.names(summaryTableMut), function(x) getTotalMut(dir, x))
+barplot(summaryTableMut$Total/summaryTableMut$Total_MUT)
+barplot(summaryTableMut$Total_SB/summaryTableMut$Total_MUT)
+#per region
+tumorColumns <- grep('Total_Region*', names(summaryTableMut))
+epMut <- vector()
+allMut <- vector()
+for (sample in row.names(summaryTableMut)){
+  tc <- tumorColumns[summaryTableMut[sample, tumorColumns]!=0]
+  for (region in (names(summaryTableMut)[tc])){
+    epMut <- c(epMut, summaryTableMut[sample, region])
+    allMut <- c(allMut, getTotalMut(dir, sample, substr(region, 7, nchar(region))))
+  }
+}
+plot(epMut, allMut)
+plot(epMut/allMut)
+
+
+
+# Compare Polyp and Set ---------------------------------------------------
+
+mutRatioSet <- epMut/allMut
+mutRatioPolyp <- epMut/allMut
+batchRatioSet <- (summaryTableMut$Total/summaryTableMut$Total_MUT)
+batchRatioPolyp <- (summaryTableMut$Total/summaryTableMut$Total_MUT)
+
+ks.test(mutRatioSet, mutRatioPolyp)
+qqplot(mutRatioSet, mutRatioPolyp, xlab='Neoepitope/all mutations in Carcinoma', ylab='Neoepitope/all mutations in Adenoma')
+plot.ecdf(mutRatioSet, col='firebrick', xlim=c(0.35, 0.65))
+plot.ecdf(mutRatioPolyp, col='skyblue4',add=T)
+
+vioplot(mutRatioSet, mutRatioPolyp, col='firebrick', names = c('Carcinoma', 'Adenoma'))
+title('Neoeptiope/all mutation ratio')
+#ks.test(batchRatioSet, batchRatioPolyp)
+#plot.ecdf(batchRatioSet, col='firebrick', xlim=c(0.35, 0.65))
+#plot.ecdf(batchRatioPolyp, col='skyblue4',add=T)

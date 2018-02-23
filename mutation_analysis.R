@@ -17,7 +17,7 @@ readExonicFile <- function(sampleFile){
 
 getRegionNames <- function(n, normal=F)
 {
-  regionNames <- c(paste0(rep('Region',n), 1:n))
+  regionNames <- c(paste0(rep('Region_',n), 0:(n-1)))
   if (normal) {regionNames <- c('Normal', regionNames)}
   return(regionNames)
 }
@@ -52,7 +52,7 @@ names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
                     'Gl', 'Ip', 'Il', 'Icore', 'ID', 'Score', 'Rank', 'Cand', 'BindLevel', 'Novelty')
 epNon <- epTable[epTable$Novelty==0,]
-epTable <- epTable[epTable$Novelty]
+epTable <- epTable[epTable$Novelty!=0,]
 barplot(table(epNon$Sample)/table(epTable$Sample)*100, las=2)
 
 sample = 'Set.02.snv'
