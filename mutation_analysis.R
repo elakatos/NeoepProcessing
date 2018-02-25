@@ -15,8 +15,18 @@ readExonicFile <- function(sampleFile){
   return(exonic)
 }
 
+readExonicFileTCGA <- function(sampleFile){
+  exonic <- read.table(sampleFile, header=F, sep='\t', stringsAsFactors = F)
+  names(exonic)[c(1:8)] <- c('LineID', 'MutType', 'MutInfo', 'Chrom', 'Start', 'End',
+                                              'RefAll', 'AltAll')
+  return(exonic)
+}
+
 getRegionNames <- function(n, normal=F)
 {
+  if (n<=0){
+    return(NULL)
+  }
   regionNames <- c(paste0(rep('Region_',n), 0:(n-1)))
   if (normal) {regionNames <- c('Normal', regionNames)}
   return(regionNames)
@@ -45,7 +55,7 @@ getPeptideFasta <- function(x, outFileName){
 }
 
 
-dir <- '~/RNAseq/Neoepitopes/CRCmseq_Set'
+dir <- '~/CRCdata/CRCmseq_Set'
 epTable <- read.table(paste0(dir, '/Neopred_results/CRCmseq.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
 names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
@@ -55,7 +65,7 @@ epNon <- epTable[epTable$Novelty==0,]
 epTable <- epTable[epTable$Novelty!=0,]
 barplot(table(epNon$Sample)/table(epTable$Sample)*100, las=2)
 
-sample = 'Set.02.snv'
+sample = 'Set.01.snv'
 sampleFile <- paste0(dir, '/avready/',sample,'.avinput')
 sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
 avinput <- readAvinput(sampleFile)
@@ -64,17 +74,18 @@ eps <- subsetEpTable(epTable, sample)
 
 tumorColumns <- grep('Region*', names(exonic))
 isEpMutation <- (exonic$LineID %in% eps$LineID)
+pdf(paste0(dir,':',sample,'.pdf'),height=5,width=8)
 par(mfrow=c(1,2))
 for (i in tumorColumns){
   allVafs <- computeVaf(exonic, i)
   epVafs <- allVafs[isEpMutation]
-  hist(allVafs[allVafs>0], xlab='VAF', ylab='All mutations', main=names(exonic)[i])
-  hist(epVafs[epVafs>0], xlab='VAF', ylab='Neoepitope mutations', main=names(exonic)[i])
+  qqplot(allVafs[allVafs>0], epVafs[epVafs>0], pch=19, xlab='All mutations', ylab='Neoepitope mutations', main='QQplot')
+  plot.ecdf(allVafs[allVafs>0],col='black', ylab='CDF', xlab='VAF')
+  plot.ecdf(epVafs[epVafs>0],col='grey50', add=T)
   print(ks.test(allVafs[allVafs>0], epVafs[epVafs>0]))
 }
 dev.off()
 
-getPeptideFasta(eps, paste0(dir,'/tmp/',sample,'.unfilt.all_eps.fasta'))
 
 # Epitope distribution ----------------------------------------------------
 
