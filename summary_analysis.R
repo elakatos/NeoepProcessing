@@ -61,6 +61,16 @@ for (sample in row.names(summaryTableMut)){
 return(summaryTableMut)
 }
 
+getSubclonalTotalMut <- function(dir, sample){
+  sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
+  exonic <- readExonicFile(sampleFileEx)
+  exonic <- exonic[,grep('Region*',names(exonic))]
+  exonic[] <- lapply(1:(ncol(exonic)), function(i) as.numeric(map(strsplit(exonic[,i], ':'),2)))
+  exReads <- exonic>0
+  exSC <- exReads[rowSums(exReads)==1,]
+  return(exSC)
+}
+
 
 # #What's the ratio between produced neoepitopes and mutations
 # barplot(summaryTable$Total/summaryTableMut$Total)
@@ -70,16 +80,26 @@ return(summaryTableMut)
 # barplot(summaryTableMut$Total/summaryTableMut$Total_MUT)
 # barplot(summaryTableMut$Total_SB/summaryTableMut$Total_MUT)
 
+getSubclonalEpMut <- function(epTable, sample){
+  eps <- subsetEpTable(epTable, sample, uniqueMutations = T)
+  tumorcol <- grep('Region*', names(eps))
+  eps <- eps[,tumorcol]
+  epsSC <- eps[rowSums(eps)==1,]
+  return(epsSC)
+}
 
-getMutationRatios <- function(dir, summaryTableMut){
-tumorColumns <- grep('Total_Region*', names(summaryTableMut))
+
+getMutationRatios <- function(dir, epTable){
 epMut <- vector()
 allMut <- vector()
-for (sample in row.names(summaryTableMut)){
-  tc <- tumorColumns[summaryTableMut[sample, tumorColumns]!=0]
-  for (region in (names(summaryTableMut)[tc])){
-    epMut <- c(epMut, summaryTableMut[sample, region])
-    allMut <- c(allMut, getTotalMut(dir, sample, substr(region, 7, nchar(region))))
+for (sample in row.names(epTable)){
+  epsSC <- getSubclonalEpMut(epTable, sample)
+  mutSC <- getSubclonalTotalMut(dir, sample)
+  for (region in names(epsSC)){
+    epMut <- c(epMut, sum(epsSC[,region]))
+    allMut <- c(allMut, sum(mutSC[,region]))
+    #epMut <- c(epMut, summaryTableMut[sample, region]) #original, non-independent samples
+    #allMut <- c(allMut, getTotalMut(dir, sample, substr(region, 7, nchar(region))))
   }
 }
 plot(epMut, allMut, pch=19, xlab='Neoepitope mutations', ylab='All mutations')
@@ -114,6 +134,9 @@ barplot(t(as.matrix(summaryTable[,c('Clonal', 'Shared','Subclonal')]/summaryTabl
 barplot(t(as.matrix(summaryTable[,c('Total_WB', 'Total_SB')]/summaryTable$Total)), col=barcolors, legend=c('Weak binders', 'Strong binders'), las=2)
 
 summaryTableMut <- getMutationTable(epTable, summaryTable)
+
+barplot(t(as.matrix(summaryTableMut[,c('Clonal', 'Shared','Subclonal')]/summaryTableMut$Total)), col=barcolors, legend=c('Clonal', 'Shared','Subclonal'), las=2)
+barplot(t(as.matrix(summaryTableMut[,c('Total_WB', 'Total_SB')]/summaryTableMut$Total)), col=barcolors, legend=c('Weak binders', 'Strong binders'), las=2)
 
 barplot(summaryTable$Total/summaryTableMut$Total, col=barcolors[1], main='Average neoepitopes per neoep mutation')
 summaryTableMut$Total_MUT <- sapply(row.names(summaryTableMut), function(x) getTotalMut(dir, x))
