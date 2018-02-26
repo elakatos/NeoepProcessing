@@ -71,6 +71,15 @@ getSubclonalTotalMut <- function(dir, sample){
   return(exSC)
 }
 
+getClonalityTotal <- function(dir, sample){
+  sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
+  exonic <- readExonicFile(sampleFileEx)
+  exonic <- exonic[,grep('Region*',names(exonic))]
+  exonic[] <- lapply(1:(ncol(exonic)), function(i) as.numeric(map(strsplit(exonic[,i], ':'),2)))
+  exonic <- exonic>0
+  return(exonic)
+}
+
 
 # #What's the ratio between produced neoepitopes and mutations
 # barplot(summaryTable$Total/summaryTableMut$Total)
@@ -80,12 +89,11 @@ getSubclonalTotalMut <- function(dir, sample){
 # barplot(summaryTableMut$Total/summaryTableMut$Total_MUT)
 # barplot(summaryTableMut$Total_SB/summaryTableMut$Total_MUT)
 
-getSubclonalEpMut <- function(epTable, sample){
+getClonalityEp <- function(epTable, sample){
   eps <- subsetEpTable(epTable, sample, uniqueMutations = T)
   tumorcol <- grep('Region*', names(eps))
   eps <- eps[,tumorcol]
-  epsSC <- eps[rowSums(eps)==1,]
-  return(epsSC)
+  return(eps)
 }
 
 
@@ -93,17 +101,27 @@ getMutationRatios <- function(dir, epTable){
 epMut <- vector()
 allMut <- vector()
 for (sample in unique(epTable$Sample)){
-  epsSC <- getSubclonalEpMut(epTable, sample)
-  mutSC <- getSubclonalTotalMut(dir, sample)
-  for (region in names(epsSC)){
-    epMut <- c(epMut, sum(epsSC[,region]))
-    allMut <- c(allMut, sum(mutSC[,region]))
+  if (sample!='Set.10.snv'){
+  eps <- getClonalityEp(epTable, sample)
+  epsSC <- eps[rowSums(eps)==1,]
+  muts <- getClonalityTotal(dir, sample)
+  mutSC <- muts[rowSums(muts)==1,]
+  #get subclonal and clonal NOT by region
+  epsC <- eps[rowSums(eps)==ncol(eps),]
+  mutsC <- muts[rowSums(muts)==ncol(muts),]
+  epMut <- c(epMut, nrow(epsC), nrow(epsSC))
+  allMut <- c(allMut, nrow(mutsC), nrow(mutSC))
+  
+  #for (region in names(epsSC)){
+   # epMut <- c(epMut, sum(epsSC[,region]))
+    #allMut <- c(allMut, sum(mutSC[,region]))
     #epMut <- c(epMut, summaryTableMut[sample, region]) #original, non-independent samples
     #allMut <- c(allMut, getTotalMut(dir, sample, substr(region, 7, nchar(region))))
+  #}
   }
 }
-#plot(epMut, allMut, pch=19, xlab='Neoepitope mutations', ylab='All mutations')
-#plot(epMut/allMut, pch=19, ylab='Neoepitope/all mutations')
+plot(epMut, allMut, pch=19, xlab='Neoepitope mutations', ylab='All mutations')
+plot(epMut/allMut, pch=19, ylab='Neoepitope/all mutations')
 return(epMut/allMut)
 }
 
@@ -150,8 +168,7 @@ dev.off()
 pdf('CRCmseq_comparison_summary.pdf', height=5, width=8)
 qqplot(mutRatios[[2]], mutRatios[[1]], pch=19, xlab='Neoepitope/all mutations in Carcinoma', ylab='Neoepitope/all mutations in Adenoma', main='QQplot')
 plot.ecdf(mutRatios[[2]], col='firebrick3', xlim=c(0.35, 0.65), ylab='CDF',
-          xlab='Neoepitope/all mutations', main=paste0('KS test p-value: ', ks.test(mutRatios[[1]], mutRatios[[2]])$p.value),
-          legend=c('Carcinoma', 'Adenoma'))
+          xlab='Neoepitope/all mutations', main=paste0('KS test p-value: ', ks.test(mutRatios[[1]], mutRatios[[2]])$p.value))
 plot.ecdf(mutRatios[[1]], col='skyblue3',add=T)
 plot.ecdf(mutRatiosBatch[[2]], col='darkred', add=T)
 plot.ecdf(mutRatiosBatch[[1]], col='steelblue4',add=T)
