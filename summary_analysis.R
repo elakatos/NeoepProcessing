@@ -92,7 +92,7 @@ getSubclonalEpMut <- function(epTable, sample){
 getMutationRatios <- function(dir, epTable){
 epMut <- vector()
 allMut <- vector()
-for (sample in row.names(epTable)){
+for (sample in unique(epTable$Sample)){
   epsSC <- getSubclonalEpMut(epTable, sample)
   mutSC <- getSubclonalTotalMut(dir, sample)
   for (region in names(epsSC)){
@@ -102,8 +102,8 @@ for (sample in row.names(epTable)){
     #allMut <- c(allMut, getTotalMut(dir, sample, substr(region, 7, nchar(region))))
   }
 }
-plot(epMut, allMut, pch=19, xlab='Neoepitope mutations', ylab='All mutations')
-plot(epMut/allMut, pch=19, ylab='Neoepitope/all mutations')
+#plot(epMut, allMut, pch=19, xlab='Neoepitope mutations', ylab='All mutations')
+#plot(epMut/allMut, pch=19, ylab='Neoepitope/all mutations')
 return(epMut/allMut)
 }
 
@@ -141,7 +141,7 @@ barplot(t(as.matrix(summaryTableMut[,c('Total_WB', 'Total_SB')]/summaryTableMut$
 barplot(summaryTable$Total/summaryTableMut$Total, col=barcolors[1], main='Average neoepitopes per neoep mutation')
 summaryTableMut$Total_MUT <- sapply(row.names(summaryTableMut), function(x) getTotalMut(dir, x))
 
-mutRatios[dir] <- list(getMutationRatios(dir, summaryTableMut))
+mutRatios[dir] <- list(getMutationRatios(dir, epTable))
 mutRatiosBatch[dir] <- list(summaryTableMut$Total/summaryTableMut$Total_MUT)
 dev.off()
 }
