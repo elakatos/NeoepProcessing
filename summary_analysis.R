@@ -37,6 +37,22 @@ getStats <- function(eps, sample, table){
   return(table)
 }
 
+getStatsTotal <- function(dir, sample, table){
+  exonic <- getClonalityTotal(dir, sample)
+  table[sample, 'Total'] = nrow(exonic)
+  for (region in names(exonic)){
+    table[sample, paste0('Total_',region)] = sum(exonic[,region])
+  }
+  clonal = exonic[rowSums(exonic)==ncol(exonic),]
+  nonclonal = exonic[rowSums(exonic)!=ncol(exonic),]
+  table[sample, 'Clonal'] = nrow(clonal)
+  shared = nonclonal[rowSums(nonclonal)>1,]
+  subclonal = nonclonal[rowSums(nonclonal)==1,]
+  table[sample, 'Shared'] = nrow(shared)
+  table[sample, 'Subclonal'] = nrow(subclonal)
+  return(table)
+}
+
 getTotalMut <- function(dir, sample, region=''){
   sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
   if (length(grep('TCGA', dir))!=0){
@@ -61,15 +77,15 @@ for (sample in row.names(summaryTableMut)){
 return(summaryTableMut)
 }
 
-getSubclonalTotalMut <- function(dir, sample){
-  sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
-  exonic <- readExonicFile(sampleFileEx)
-  exonic <- exonic[,grep('Region*',names(exonic))]
-  exonic[] <- lapply(1:(ncol(exonic)), function(i) as.numeric(map(strsplit(exonic[,i], ':'),2)))
-  exReads <- exonic>0
-  exSC <- exReads[rowSums(exReads)==1,]
-  return(exSC)
+getMutationTableTotal <- function(dir, sampleNames){
+  summaryTableTotal <- data.frame(matrix(vector(), nrow=length(sampleNames)))
+  row.names(summaryTableTotal) <- sampleNames
+  for (sample in sampleNames){
+    summaryTableTotal <- getStatsTotal(dir, sample, summaryTableTotal)
+  }
+  return(summaryTableTotal)
 }
+
 
 getClonalityTotal <- function(dir, sample){
   sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
@@ -80,14 +96,6 @@ getClonalityTotal <- function(dir, sample){
   return(exonic)
 }
 
-
-# #What's the ratio between produced neoepitopes and mutations
-# barplot(summaryTable$Total/summaryTableMut$Total)
-# 
-# #What's the distribution of neoepitopes per mutation
-# summaryTableMut$Total_MUT <- sapply(row.names(summaryTableMut), function(x) getTotalMut(dir, x))
-# barplot(summaryTableMut$Total/summaryTableMut$Total_MUT)
-# barplot(summaryTableMut$Total_SB/summaryTableMut$Total_MUT)
 
 getClonalityEp <- function(epTable, sample){
   eps <- subsetEpTable(epTable, sample, uniqueMutations = T)
@@ -101,7 +109,6 @@ getMutationRatios <- function(dir, epTable){
 epMut <- vector()
 allMut <- vector()
 for (sample in unique(epTable$Sample)){
-  if (sample!='Set.10.snv'){
   eps <- getClonalityEp(epTable, sample)
   epsSC <- eps[rowSums(eps)==1,]
   muts <- getClonalityTotal(dir, sample)
@@ -118,7 +125,6 @@ for (sample in unique(epTable$Sample)){
     #epMut <- c(epMut, summaryTableMut[sample, region]) #original, non-independent samples
     #allMut <- c(allMut, getTotalMut(dir, sample, substr(region, 7, nchar(region))))
   #}
-  }
 }
 plot(epMut, allMut, pch=19, xlab='Neoepitope mutations', ylab='All mutations')
 plot(epMut/allMut, pch=19, ylab='Neoepitope/all mutations')
@@ -144,6 +150,7 @@ names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom
                     'Gl', 'Ip', 'Il', 'Icore', 'ID', 'Score', 'Rank', 'Cand', 'BindLevel', 'Novelty')
 epNon <- epTable[epTable$Novelty==0,]
 epTable <- epTable[epTable$Novelty!=0,]
+epTable <- epTable[epTable$Sample!='Set.10.snv',] #to disregard the replication of Set10
 
 summaryTable <- read.table(paste0(dir,'/Neopred_results/CRCmseq.neoantigens.summarytable.txt'), header=T, row.names=1)
 

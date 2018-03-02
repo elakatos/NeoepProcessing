@@ -49,11 +49,6 @@ computeVaf <- function(readData, colInd){
   return(vafs)
 }
 
-getPeptideFasta <- function(x, outFileName){
-  y <- sapply(1:nrow(x), function(z) cat('>',x[z,'LineID'],'-',x[z,'peptide'],'\n',
-                                    x[z,'peptide'],'\n', file=outFileName, append=T, sep=''))
-}
-
 
 dir <- '~/CRCdata/CRCmseq_Set'
 epTable <- read.table(paste0(dir, '/Neopred_results/CRCmseq.neoantigens.txt'), header=F,
@@ -90,8 +85,11 @@ dev.off()
 # Epitope distribution ----------------------------------------------------
 
 tumorColumns = grep('Region*', names(eps))
-hist(eps[rowSums(eps[, tumorColumns])==5,]$Rank, breaks=50  )
+hist(eps$Rank, breaks=20)
+hist(eps[rowSums(eps[, tumorColumns])==4,]$Rank, breaks=20  )
 
+epRankClonal <- eps[rowSums(eps[, tumorColumns])==4,]$Rank
+epRankNotClonal <- eps[rowSums(eps[, tumorColumns])<4,]$Rank
 
 setwd('~/RNAseq/Neoepitopes/')
 random.data <- read.table('random_epitopes_all.txt', sep='\t', header=T,stringsAsFactors = F)
