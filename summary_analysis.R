@@ -64,7 +64,8 @@ getTotalMut <- function(dir, sample, region=''){
     regionMut <- as.numeric(map(strsplit(exonic[,region], ':'),2))>0
     exonic <- exonic[regionMut,]
   }
-  return(nrow(exonic))
+  #return(nrow(exonic))
+  return(sum(exonic$MutType=='nonsynonymous SNV')) #get only nonsynonymous exonic mutations
 }
 
 getMutationTable <- function(epTable, summaryTable){
@@ -165,6 +166,7 @@ barplot(t(as.matrix(summaryTableMut[,c('Total_WB', 'Total_SB')]/summaryTableMut$
 
 barplot(summaryTable$Total/summaryTableMut$Total, col=barcolors[1], main='Average neoepitopes per neoep mutation')
 summaryTableMut$Total_MUT <- sapply(row.names(summaryTableMut), function(x) getTotalMut(dir, x))
+barplot(summaryTableMut$Total/summaryTableMut$Total_MUT, col=barcolors[1], main='Neoepitope mutations/ all mutations')
 
 mutRatios[dir] <- list(getMutationRatios(dir, epTable))
 mutRatiosBatch[dir] <- list(summaryTableMut$Total/summaryTableMut$Total_MUT)
@@ -174,10 +176,10 @@ dev.off()
 
 pdf('CRCmseq_comparison_summary.pdf', height=5, width=8)
 qqplot(mutRatios[[2]], mutRatios[[1]], pch=19, xlab='Neoepitope/all mutations in Carcinoma', ylab='Neoepitope/all mutations in Adenoma', main='QQplot')
-plot.ecdf(mutRatios[[2]], col='firebrick3', xlim=c(0.35, 0.65), ylab='CDF',
+plot.ecdf(mutRatios[[2]], col='firebrick3', xlim=c(0.6, 0.9), ylab='CDF',
           xlab='Neoepitope/all mutations', main=paste0('KS test p-value: ', ks.test(mutRatios[[1]], mutRatios[[2]])$p.value))
 plot.ecdf(mutRatios[[1]], col='skyblue3',add=T)
-plot.ecdf(mutRatiosBatch[[2]], col='darkred', add=T)
+plot.ecdf(mutRatiosBatch[[2]], col='darkred')
 plot.ecdf(mutRatiosBatch[[1]], col='steelblue4',add=T)
 
 vioplot(mutRatios[[2]], mutRatios[[1]], col='wheat3', names = c('Carcinoma', 'Adenoma'))
@@ -208,4 +210,22 @@ barplot(t(as.matrix(summaryTable[,c('Total_WB', 'Total_SB')]/summaryTable$Total)
 
 summaryTableMut <- getMutationTable(epTable, summaryTable)
 summaryTableMut$Total_MUT <- sapply(row.names(summaryTableMut), function(x) getTotalMut(dir, x))
+dev.off()
+
+
+# General mutations stats -------------------------------------------------
+
+dirList <- c('CRCmseq_Polyp', 'CRCmseq_Set')
+DNDAs = list()
+
+for (dir in dirList){
+summaryTable <- read.table(paste0(dir,'/Neopred_results/CRCmseq.neoantigens.summarytable.txt'), header=T, row.names=1)
+dnda = vector()
+for (sample in row.names(summaryTable)){
+  sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
+  exonic <- readExonicFile(sampleFileEx)
+  dnda = c(dnda, (sum(exonic$MutType=='nonsynonymous SNV')/sum(exonic$MutType=='synonymous SNV')))
+}
+DNDAs[dir] = list(dnda)
+}
 

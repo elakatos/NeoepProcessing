@@ -63,9 +63,9 @@ barplot(table(epNon$Sample)/table(epTable$Sample)*100, las=2)
 sample = 'Set.01.snv'
 sampleFile <- paste0(dir, '/avready/',sample,'.avinput')
 sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
-avinput <- readAvinput(sampleFile)
+#avinput <- readAvinput(sampleFile)
 exonic <- readExonicFile(sampleFileEx)
-eps <- subsetEpTable(epTable, sample)
+eps <- subsetEpTable(epTable, sample, unique=T)
 
 tumorColumns <- grep('Region*', names(exonic))
 isEpMutation <- (exonic$LineID %in% eps$LineID)
@@ -91,7 +91,7 @@ hist(eps[rowSums(eps[, tumorColumns])==4,]$Rank, breaks=20  )
 epRankClonal <- eps[rowSums(eps[, tumorColumns])==4,]$Rank
 epRankNotClonal <- eps[rowSums(eps[, tumorColumns])<4,]$Rank
 
-setwd('~/RNAseq/Neoepitopes/')
+#setwd('~/RNAseq/Neoepitopes/')
 random.data <- read.table('random_epitopes_all.txt', sep='\t', header=T,stringsAsFactors = F)
 names(random.data)[3] <- 'peptide'
 random.data.real <- subset(random.data, !((nchar(random.data$peptide)==9) &  (random.data$peptide_pos) %in% c(1,11)) )
