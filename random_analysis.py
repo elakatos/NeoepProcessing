@@ -10,8 +10,8 @@ def DigestAllSamples(listFile, outFile):
         pm = {'peptidematch_jar':'/data/home/hfx365/Software/PeptideMatchCMD_1.0.jar', 'reference_index': '/data2/home/hfx365/Reference/Ensembl/index'}
         allEps = DigestSample(preds, True, pm)
     with open(outFile, 'w') as outf:
-        outFile.write('hla\tpeptide core\tOf\tGp\tGl\tIp\tIl\tIcore\tIdentity\tScore\tRank\tCandidate\tBindLevel\tNovelty\tPatIndex\n')
-        outFile.write(('\n').join(allEps))
+        outf.write('hla\tpeptide core\tOf\tGp\tGl\tIp\tIl\tIcore\tIdentity\tScore\tRank\tCandidate\tBindLevel\tPatIndex\tNovelty\n')
+        outf.write(('\n').join(allEps))
 
 
 def DigestSample(toDigest, checkPeptides, pepmatchPaths):
@@ -36,6 +36,8 @@ def DigestSample(toDigest, checkPeptides, pepmatchPaths):
                 try:
                     if line.strip()[0].isdigit():
                         linespl = line.split()
+                        if '<=' not in linespl:
+                            linespl.append('<=\tN')
                         lines.append('\t'.join(linespl)+'\t'+patName)
                         if checkPeptides:
                             pmInput.write('>' + linespl[10] + ';' + linespl[2] + '\n' + linespl[2] + '\n')
@@ -68,3 +70,5 @@ def ProcessPepmatch(pmfileName, epLines):
         appendedLines.append(line+'\t'+str(novel))
 
     return(appendedLines)
+
+DigestAllSamples('random_file_list.txt', 'random_proteome_all.txt')
