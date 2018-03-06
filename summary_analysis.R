@@ -190,9 +190,10 @@ title('Neoeptiope/all mutation ratio')
 
 var.test(mutRatiosBatch[[1]], mutRatiosBatch[[2]])
 t.test(mutRatiosBatch[[1]], mutRatiosBatch[[2]])
-mutRatiosBatch['Random_peptides'] <- list(random.summary$EpMuts/random.summary$AllMuts)
+mutRatiosBatch['Random_proteome'] <- list(random.summary$EpMuts/random.summary$AllMuts)
 plot.ecdf(mutRatiosBatch[[3]], col='darkgreen', add=T)
-ks.test(mutRatiosBatch[[1]], mutRatiosBatch[[3]])
+plot.ecdf(mutRatiosBatch[[4]], col='goldenrod4', add=T)
+t.test(mutRatiosBatch[[1]], mutRatiosBatch[[4]])
 
 
 

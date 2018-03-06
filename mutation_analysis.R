@@ -92,9 +92,11 @@ epRankClonal <- eps[rowSums(eps[, tumorColumns])==4,]$Rank
 epRankNotClonal <- eps[rowSums(eps[, tumorColumns])<4,]$Rank
 
 #setwd('~/RNAseq/Neoepitopes/')
-random.data <- read.table('random_epitopes_all.txt', sep='\t', header=T,stringsAsFactors = F)
+random.data <- read.table('random_proteome_all.txt', sep='\t',row.names=NULL, header=T,stringsAsFactors = F)
 names(random.data)[3] <- 'peptide'
 random.data.real <- subset(random.data, !((nchar(random.data$peptide)==9) &  (random.data$peptide_pos) %in% c(1,11)) )
+random.data.non <- subset(random.data.real, Novelty==0)
+random.data.real <- subset(random.data.real, Novelty==1)
 
 random.summary <- data.frame(matrix(vector(), nrow=length(unique(random.data$PatIndex))))
 row.names(random.summary) <- unique(random.data$PatIndex)
@@ -115,4 +117,4 @@ barplot(random.summary$EpMuts/random.summary$AllMuts)
 barplot(random.summary$Epitopes/random.summary$EpMuts)
 barplot(random.summary$SB/random.summary$Epitopes)
 
-hist(random.data.filtered[random.data.filtered$PatIndex==14,]$Rank, breaks=100)
+hist(random.data.filtered[random.data.filtered$PatIndex==14,]$Rank, breaks=20)
