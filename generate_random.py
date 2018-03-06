@@ -26,8 +26,16 @@ def processProteomeFasta(fastaName, outName):
             outFile.write(buffer+'\n')
             line=fastaFile.readline()
 
+def codonTable():
+    codonDict = {'F': 'SYCLIV', 'L':'FIMVSPHQRW', 'I': 'FLMVTNSKR', 'M':'LIVTKR', 'V':'FLIMADEG',
+    'S':'FLYCWPTARGNI', 'P':'STAHQRL', 'T':'SPANKRIM', 'A':'VDEGSPT', 'Y':'FSCHND', 'H':'LPRYNDQ',
+    'Q':'LPRKEH', 'N':'YHDITSK', 'K':'QEIMTRN', 'D':'YHNVAGE', 'E':'VAGQKD', 'C':'FSYWRSG',
+    'W':'CLSRG', 'R':'CWSGLPHQIMTK', 'G':'CWRSVADE'}
+    return(codonDict)
+
 def sampleProteome(protFastaName, outName):
     aaOneLetter='GPAVLIMCFYWHKRQNEDST'
+    codonDict=codonTable()
     with open(protFastaName, 'r') as pfasta:
         proteome = pfasta.readlines()
     N = len(proteome)
@@ -42,8 +50,9 @@ def sampleProteome(protFastaName, outName):
             else:
                 aaID = random.randint(9, len(prot)-9)
                 peptide = prot[(aaID-9):(aaID+10)]
-                print(peptide)
-                new_peptide = peptide[0:9]+str(random.choice(list(aaOneLetter)))+peptide[10:]
-                print(new_peptide)
-
-sampleProteome('test/test_proteome.fasta', 'test/test_outproteome.fasta')
+                if '*' in peptide:
+                    pass
+                else:
+                    possibleSubs=codonDict[peptide[9]]
+                    new_peptide = peptide[0:9]+str(random.choice(list(possibleSubs)))+peptide[10:]
+                    outFile.write('>line'+str(i)+';protein:'+str(pID)+';aa:'+str(aaID)+';mut:'+peptide[9]+'->'+new_peptide[9]+'\n' + new_peptide + '\n')

@@ -174,19 +174,25 @@ dev.off()
 }
 
 
-pdf('CRCmseq_comparison_summary.pdf', height=5, width=8)
+#pdf('CRCmseq_comparison_summary.pdf', height=5, width=8)
 qqplot(mutRatios[[2]], mutRatios[[1]], pch=19, xlab='Neoepitope/all mutations in Carcinoma', ylab='Neoepitope/all mutations in Adenoma', main='QQplot')
 plot.ecdf(mutRatios[[2]], col='firebrick3', xlim=c(0.6, 0.9), ylab='CDF',
           xlab='Neoepitope/all mutations', main=paste0('KS test p-value: ', ks.test(mutRatios[[1]], mutRatios[[2]])$p.value))
 plot.ecdf(mutRatios[[1]], col='skyblue3',add=T)
-plot.ecdf(mutRatiosBatch[[2]], col='darkred')
+plot.ecdf(mutRatiosBatch[[2]], col='darkred', xlim=c(0.65, 0.9))
 plot.ecdf(mutRatiosBatch[[1]], col='steelblue4',add=T)
 
 vioplot(mutRatios[[2]], mutRatios[[1]], col='wheat3', names = c('Carcinoma', 'Adenoma'))
 title('Neoeptiope/all mutation ratio')
-dev.off()
+#dev.off()
 
 
+
+var.test(mutRatiosBatch[[1]], mutRatiosBatch[[2]])
+t.test(mutRatiosBatch[[1]], mutRatiosBatch[[2]])
+mutRatiosBatch['Random_peptides'] <- list(random.summary$EpMuts/random.summary$AllMuts)
+plot.ecdf(mutRatiosBatch[[3]], col='darkgreen', add=T)
+ks.test(mutRatiosBatch[[1]], mutRatiosBatch[[3]])
 
 
 
