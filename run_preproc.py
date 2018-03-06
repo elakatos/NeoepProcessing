@@ -7,4 +7,7 @@ import generate_random as gr
 
 #prep.processAllFilesSomatic('Samples/sample_list.tsv')
 
-gr.processProteomeFasta('/data/home/hfx365/Reference/Ensembl/Homo_sapiens.GRCh38.pep.all.fa', '/data/home/hfx365/Reference/Ensembl/Extracted_proteome.fasta')
+#gr.processProteomeFasta('/data/home/hfx365/Reference/Ensembl/Homo_sapiens.GRCh38.pep.all.fa', '/data/home/hfx365/Reference/Ensembl/Extracted_proteome.fasta')
+
+for i in range(25):
+    gr.sampleProteome('/data/home/hfx365/Reference/Ensembl/Extracted_proteome.fasta','/data2/BCI-EvoCa2/eszter/Neoepitopes/Random/random_proteome_'+str(i+1)+'.fasta')

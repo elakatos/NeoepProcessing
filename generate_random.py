@@ -30,7 +30,7 @@ def codonTable():
     codonDict = {'F': 'SYCLIV', 'L':'FIMVSPHQRW', 'I': 'FLMVTNSKR', 'M':'LIVTKR', 'V':'FLIMADEG',
     'S':'FLYCWPTARGNI', 'P':'STAHQRL', 'T':'SPANKRIM', 'A':'VDEGSPT', 'Y':'FSCHND', 'H':'LPRYNDQ',
     'Q':'LPRKEH', 'N':'YHDITSK', 'K':'QEIMTRN', 'D':'YHNVAGE', 'E':'VAGQKD', 'C':'FSYWRSG',
-    'W':'CLSRG', 'R':'CWSGLPHQIMTK', 'G':'CWRSVADE'}
+    'W':'CLSRG', 'R':'CWSGLPHQIMTK', 'G':'CWRSVADE', 'U':'SLCRG', 'O':'LSWQKEY'}
     return(codonDict)
 
 def sampleProteome(protFastaName, outName):
@@ -40,8 +40,8 @@ def sampleProteome(protFastaName, outName):
         proteome = pfasta.readlines()
     N = len(proteome)
     with open(outName, 'w') as outFile:
-        #mutNum = random.randint(100, 800)
-        mutNum = 10
+        mutNum = random.randint(100, 800)
+        #mutNum = 10
         for i in range(mutNum):
             pID = random.randint(0, N)
             prot = proteome[pID].rstrip('\n')
