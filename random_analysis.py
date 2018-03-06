@@ -10,7 +10,7 @@ def DigestAllSamples(listFile, outFile):
         pm = {'peptidematch_jar':'/data/home/hfx365/Software/PeptideMatchCMD_1.0.jar', 'reference_index': '/data2/home/hfx365/Reference/Ensembl/index'}
         allEps = DigestSample(preds, True, pm)
     with open(outFile, 'w') as outf:
-        outf.write('hla\tpeptide core\tOf\tGp\tGl\tIp\tIl\tIcore\tIdentity\tScore\tRank\tCandidate\tBindLevel\tPatIndex\tNovelty\n')
+        outf.write('peptide_pos\thla\tpeptide\tpep_core\tOf\tGp\tGl\tIp\tIl\tIcore\tIdentity\tScore\tRank\tCandidate\tBindLevel\tPatIndex\tNovelty\n')
         outf.write(('\n').join(allEps))
 
 
@@ -46,6 +46,7 @@ def DigestSample(toDigest, checkPeptides, pepmatchPaths):
     pmInput.close()
     if checkPeptides:
         pmOutFile = 'tmp/random.peptidematch.out'
+        print('Checking peptides against proteome')
         RunPepmatch(pmInputFile, pepmatchPaths['peptidematch_jar'], pepmatchPaths['reference_index'], pmOutFile)
         lines = ProcessPepmatch(pmOutFile, lines)
     print("INFO: Object size of neoantigens: %s Kb"%(sys.getsizeof(lines)))
