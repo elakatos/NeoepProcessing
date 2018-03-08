@@ -49,6 +49,16 @@ computeVaf <- function(readData, colInd){
   return(vafs)
 }
 
+computeVafAD <- function(readData, colInd){
+  readVec <- readData[,colInd]
+  readVec <- readVec[readVec!='.']
+  readInfo <- strsplit(readVec, ':')
+  AD <- map(readInfo, 11)
+  ADvec <- sapply(AD, function(i) strsplit(i, ','))
+  vafs <- as.numeric(map(ADvec, 2))/(as.numeric(map(ADvec, 1))+as.numeric(map(ADvec,2)))
+  return(vafs)
+}
+
 
 epTable <- read.table(paste0(dir, '/Neopred_results/Output.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
@@ -59,7 +69,7 @@ epNon <- epTable[epTable$Novelty==0,]
 epTable <- epTable[epTable$Novelty!=0,]
 barplot(table(epNon$Sample)/table(epTable$Sample)*100, las=2)
 
-sample = 'Oxford_IBD6.mutectCalls..somatic'
+sample = 'H1195.mutectCalls..somatic'
 #sampleFile <- paste0(dir, '/avready/',sample,'.avinput')
 sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
 #avinput <- readAvinput(sampleFile)
@@ -71,8 +81,8 @@ isEpMutation <- (exonic$LineID %in% eps$LineID)
 pdf(paste0(dir,':',sample,'.pdf'),height=5,width=8)
 par(mfrow=c(1,2))
 for (i in tumorColumns){
-  allVafs <- computeVaf(exonic, i)
-  epVafs <- allVafs[isEpMutation]
+  allVafs <- computeVafAD(exonic, i)
+  epVafs <- computeVafAD(exonic[isEpMutation,], i)
   qqplot(allVafs[allVafs>0], epVafs[epVafs>0], pch=19, xlab='All mutations', ylab='Neoepitope mutations', main='QQplot')
   plot.ecdf(allVafs[allVafs>0],col='black', ylab='CDF', xlab='VAF')
   plot.ecdf(epVafs[epVafs>0],col='grey50', add=T)
