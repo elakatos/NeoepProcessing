@@ -50,8 +50,7 @@ computeVaf <- function(readData, colInd){
 }
 
 
-dir <- '~/CRCdata/CRCmseq_Set'
-epTable <- read.table(paste0(dir, '/Neopred_results/CRCmseq.neoantigens.txt'), header=F,
+epTable <- read.table(paste0(dir, '/Neopred_results/Output.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
 names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
@@ -60,8 +59,8 @@ epNon <- epTable[epTable$Novelty==0,]
 epTable <- epTable[epTable$Novelty!=0,]
 barplot(table(epNon$Sample)/table(epTable$Sample)*100, las=2)
 
-sample = 'Set.01.snv'
-sampleFile <- paste0(dir, '/avready/',sample,'.avinput')
+sample = 'Oxford_IBD6.mutectCalls..somatic'
+#sampleFile <- paste0(dir, '/avready/',sample,'.avinput')
 sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
 #avinput <- readAvinput(sampleFile)
 exonic <- readExonicFile(sampleFileEx)

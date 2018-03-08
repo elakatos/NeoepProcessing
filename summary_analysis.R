@@ -20,13 +20,13 @@ getStats <- function(eps, sample, table){
     table[sample, paste0('Total_WB_',region)] = sum((eps[,region]==1) * (eps$BindLevel=='WB'))
     table[sample, paste0('Total_SB_',region)] = sum((eps[,region]==1) * (eps$BindLevel=='SB'))
   }
-  clonaleps = eps[rowSums(eps[,tumorColumns])==length(tumorColumns),]
-  nonclonaleps = eps[rowSums(eps[,tumorColumns])!=length(tumorColumns),]
+  clonaleps = eps[rowSums(eps[,tumorColumns,drop=F])==length(tumorColumns),]
+  nonclonaleps = eps[rowSums(eps[,tumorColumns,drop=F])!=length(tumorColumns),]
   table[sample, 'Clonal'] = nrow(clonaleps)
   table[sample, 'Clonal_WB'] = sum(clonaleps$BindLevel=='WB')
   table[sample, 'Clonal_SB'] = sum(clonaleps$BindLevel=='SB')
-  sharedeps = nonclonaleps[rowSums(nonclonaleps[,tumorColumns])>1,]
-  subclonaleps = nonclonaleps[rowSums(nonclonaleps[,tumorColumns])==1,]
+  sharedeps = nonclonaleps[rowSums(nonclonaleps[,tumorColumns,drop=F])>1,]
+  subclonaleps = nonclonaleps[rowSums(nonclonaleps[,tumorColumns,drop=F])==1,]
   table[sample, 'Shared'] = nrow(sharedeps)
   table[sample, 'Shared_WB'] = sum(sharedeps$BindLevel=='WB')
   table[sample, 'Shared_SB'] = sum(sharedeps$BindLevel=='SB')
@@ -66,6 +66,13 @@ getTotalMut <- function(dir, sample, region=''){
   }
   #return(nrow(exonic))
   return(sum(exonic$MutType=='nonsynonymous SNV')) #get only nonsynonymous exonic mutations
+}
+
+getTotalMutFromFasta <- function(dir, sample){
+  #returns only mutations that were inputted into netMHC
+  fFile <- paste0(dir, '/fastaFiles/',sample,'.tmp.10.fasta')
+  fData <- scan(file=fFile, what='string')
+  return(length(fData)/2)
 }
 
 getMutationTable <- function(epTable, summaryTable){
@@ -137,14 +144,15 @@ return(epMut/allMut)
 
 setwd('~/CRCdata')
 
-mutRatios = list()
+#mutRatios = list()
 mutRatiosBatch = list()
 
-dirList <- c('CRCmseq_Polyp', 'CRCmseq_Set')
+dirList <- c('CRCmseq_Polyp', 'CRCmseq_Set', 'IBD')
+#dirList <- c('IBD')
 
 for (dir in dirList){
 pdf(paste0(dir, '_summary.pdf'), height = 5, width=8)
-epTable <- read.table(paste0(dir, '/Neopred_results/CRCmseq.neoantigens.txt'), header=F,
+epTable <- read.table(paste0(dir, '/Neopred_results/Output.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
 names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
@@ -153,7 +161,7 @@ epNon <- epTable[epTable$Novelty==0,]
 epTable <- epTable[epTable$Novelty!=0,]
 epTable <- epTable[epTable$Sample!='Set.10.snv',] #to disregard the replication of Set10
 
-summaryTable <- read.table(paste0(dir,'/Neopred_results/CRCmseq.neoantigens.summarytable.txt'), header=T, row.names=1)
+summaryTable <- read.table(paste0(dir,'/Neopred_results/Output.neoantigens.summarytable.txt'), header=T, row.names=1)
 
 barcolors = c('firebrick', 'darkorange3', 'goldenrod1')
 barplot(t(as.matrix(summaryTable[,c('Clonal', 'Shared','Subclonal')]/summaryTable$Total)), col=barcolors, legend=c('Clonal', 'Shared','Subclonal'), las=2)
@@ -165,10 +173,10 @@ barplot(t(as.matrix(summaryTableMut[,c('Clonal', 'Shared','Subclonal')]/summaryT
 barplot(t(as.matrix(summaryTableMut[,c('Total_WB', 'Total_SB')]/summaryTableMut$Total)), col=barcolors, legend=c('Weak binders', 'Strong binders'), las=2)
 
 barplot(summaryTable$Total/summaryTableMut$Total, col=barcolors[1], main='Average neoepitopes per neoep mutation')
-summaryTableMut$Total_MUT <- sapply(row.names(summaryTableMut), function(x) getTotalMut(dir, x))
+summaryTableMut$Total_MUT <- sapply(row.names(summaryTableMut), function(x) getTotalMutFromFasta(dir, x))
 barplot(summaryTableMut$Total/summaryTableMut$Total_MUT, col=barcolors[1], main='Neoepitope mutations/ all mutations')
 
-mutRatios[dir] <- list(getMutationRatios(dir, epTable))
+#mutRatios[dir] <- list(getMutationRatios(dir, epTable))
 mutRatiosBatch[dir] <- list(summaryTableMut$Total/summaryTableMut$Total_MUT)
 dev.off()
 }
@@ -191,9 +199,14 @@ title('Neoeptiope/all mutation ratio')
 var.test(mutRatiosBatch[[1]], mutRatiosBatch[[2]])
 t.test(mutRatiosBatch[[1]], mutRatiosBatch[[2]])
 mutRatiosBatch['Random_proteome'] <- list(random.summary$EpMuts/random.summary$AllMuts)
+
+pdf('Neoepitope_ratio.pdf', height=5, width=8)
+plot.ecdf(mutRatiosBatch[[2]], col='darkred', xlim=c(0.65, 0.9))
+plot.ecdf(mutRatiosBatch[[1]], col='steelblue4',add=T)
 plot.ecdf(mutRatiosBatch[[3]], col='darkgreen', add=T)
-plot.ecdf(mutRatiosBatch[[4]], col='goldenrod4', add=T)
-t.test(mutRatiosBatch[[1]], mutRatiosBatch[[4]])
+plot.ecdf(mutRatiosBatch[[4]], col='grey75', add=T)
+dev.off()
+t.test(mutRatiosBatch[[3]], mutRatiosBatch[[4]])
 
 
 
