@@ -67,9 +67,10 @@ names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom
                     'Gl', 'Ip', 'Il', 'Icore', 'ID', 'Score', 'Rank', 'Cand', 'BindLevel', 'Novelty')
 epNon <- epTable[epTable$Novelty==0,]
 epTable <- epTable[epTable$Novelty!=0,]
-barplot(table(epNon$Sample)/table(epTable$Sample)*100, las=2)
+#barplot(table(epNon$Sample)/table(epTable$Sample)*100, las=2)
+epTableStrong <- epTable[epTable$BindLevel=='SB',]
 
-sample = 'H1195.mutectCalls..somatic'
+sample = 'Oxford_IBD1.mutectCalls..somatic'
 #sampleFile <- paste0(dir, '/avready/',sample,'.avinput')
 sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
 #avinput <- readAvinput(sampleFile)
@@ -78,15 +79,22 @@ eps <- subsetEpTable(epTable, sample, unique=T)
 
 tumorColumns <- grep('Region*', names(exonic))
 isEpMutation <- (exonic$LineID %in% eps$LineID)
-pdf(paste0(dir,':',sample,'.pdf'),height=5,width=8)
+uB <- 0.3
+lB <- 0.05
+pdf(paste0(dir,':',sample,'_s.pdf'),height=5,width=8)
 par(mfrow=c(1,2))
 for (i in tumorColumns){
   allVafs <- computeVafAD(exonic, i)
   epVafs <- computeVafAD(exonic[isEpMutation,], i)
-  qqplot(allVafs[allVafs>0], epVafs[epVafs>0], pch=19, xlab='All mutations', ylab='Neoepitope mutations', main='QQplot')
-  plot.ecdf(allVafs[allVafs>0],col='black', ylab='CDF', xlab='VAF')
-  plot.ecdf(epVafs[epVafs>0],col='grey50', add=T)
-  print(ks.test(allVafs[allVafs>0], epVafs[epVafs>0]))
+  
+  allVafsF <- allVafs[(allVafs>lB) & (allVafs< uB)]
+  epVafsF <- epVafs[(epVafs>lB) & (epVafs < uB)]
+  
+  print(length(allVafsF))
+  qqplot(allVafsF, epVafsF, pch=19, xlab='All mutations', ylab='Neoepitope mutations', main='QQplot')
+  plot.ecdf(allVafsF,col='black', ylab='CDF', xlab='VAF')
+  plot.ecdf(epVafsF,col='grey50', add=T)
+  print(ks.test(allVafsF, epVafsF))
 }
 dev.off()
 
@@ -127,3 +135,14 @@ barplot(random.summary$Epitopes/random.summary$EpMuts)
 barplot(random.summary$SB/random.summary$Epitopes)
 
 hist(random.data.filtered[random.data.filtered$PatIndex==14,]$Rank, breaks=20)
+
+
+
+
+# HLAs --------------------------------------------------------------------
+
+cat(hlasA, sep=' ', file='~/RNAseq/Software/NeoepProcessing/HLA_list.txt')
+cat('\n', file='~/RNAseq/Software/NeoepProcessing/HLA_list.txt', append=T)
+cat(hlasB, sep=' ', file='~/RNAseq/Software/NeoepProcessing/HLA_list.txt', append=T)
+cat('\n', file='~/RNAseq/Software/NeoepProcessing/HLA_list.txt', append=T)
+cat(hlasC, sep=' ', file='~/RNAseq/Software/NeoepProcessing/HLA_list.txt', append=T)

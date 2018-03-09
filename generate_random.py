@@ -56,3 +56,16 @@ def sampleProteome(protFastaName, outName):
                     possibleSubs=codonDict[peptide[9]]
                     new_peptide = peptide[0:9]+str(random.choice(list(possibleSubs)))+peptide[10:]
                     outFile.write('>line'+str(i)+';protein:'+str(pID)+';aa:'+str(aaID)+';mut:'+peptide[9]+'->'+new_peptide[9]+'\n' + new_peptide + '\n')
+
+def sampleHLAs(hlaListFile, N, outFile):
+    with open(hlaListFile, 'r') as hlFile:
+        hlas = hlFile.readlines()
+    hlaA = hlas[0].rstrip('\n').split()
+    hlaB = hlas[1].rstrip('\n').split()
+    hlaC = hlas[2].rstrip('\n').split()
+    with open(outFile, 'w') as of:
+        for i in range(N):
+            hlaSample = ','.join([','.join(random.choice(hlaA, 2, replace=True)), ','.join(random.choice(hlaB, 2, replace=True)),
+                ','.join(random.choice(hlaC, 2, replace=True))])
+            of.write(hlaSample+'\n')
+
