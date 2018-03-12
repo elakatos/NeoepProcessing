@@ -51,18 +51,21 @@ def RetrieveWT(tpFasta, outFasta):
         for i in range(len(headerLines)):
             mutInfo = headerLines[i].rstrip('\n').split(';')[-6:]
             seq = seqLines[i].rstrip('\n')
-            if len(seq)==19:
-                ind = 9
-            elif int(mutInfo[0])<10: #Peptide is shorter because mutation is in the beginning of the protein
-                ind = int(mutInfo[0])-1
+            if len(seq)==0:
+		pass
             else:
-                ind = 9
+                if len(seq)==19:
+                    ind = 9
+                elif int(mutInfo[0])<10: #Peptide is shorter because mutation is in the beginning of the protein
+                    ind = int(mutInfo[0])-1
+                else:
+                    ind = 9
 
-            if seq[ind] != mutInfo[-1][0]:
-                raise ValueError('Amino acid change in header does not match mutated peptide sequence!')
-            else:
-                newSeq = seq[:ind]+mutInfo[-3]+seq[(ind+1):]
-                of.write(headerLines[i].rstrip('\n')+'\n'+newSeq+'\n')
+                if seq[ind] != mutInfo[-1][0]:
+                    raise ValueError('Amino acid change in header does not match mutated peptide sequence!')
+                else:
+                    newSeq = seq[:ind]+mutInfo[-3]+seq[(ind+1):]
+                    of.write(headerLines[i].rstrip('\n')+'\n'+newSeq+'\n')
 
 def CreateWTFiles(fileList, outFolder):
     with open(fileList, 'r') as fl:
