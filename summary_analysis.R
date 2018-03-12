@@ -112,31 +112,51 @@ getClonalityEp <- function(epTable, sample){
   return(eps)
 }
 
-
-getMutationRatios <- function(dir, epTable){
-epMut <- vector()
-allMut <- vector()
-for (sample in unique(epTable$Sample)){
-  eps <- getClonalityEp(epTable, sample)
-  epsSC <- eps[rowSums(eps)==1,]
-  muts <- getClonalityTotal(dir, sample)
-  mutSC <- muts[rowSums(muts)==1,]
-  #get subclonal and clonal NOT by region
-  epsC <- eps[rowSums(eps)==ncol(eps),]
-  mutsC <- muts[rowSums(muts)==ncol(muts),]
-  epMut <- c(epMut, nrow(epsC), nrow(epsSC))
-  allMut <- c(allMut, nrow(mutsC), nrow(mutSC))
+getMutPresenceTable <- function(dir, sample, regions, gtInfo){
+  fFile <- paste0(dir, '/fastaFiles/',sample,'.tmp.10.fasta')
+  fData <- scan(file=fFile, what='string')
+  fData <- fData[seq(1,length(fData),by=2)]
+  mutLine <- map(strsplit(fData, ';'),1)
+  mutIDs <- sapply(mutLine, function(i) substr(i, 2,nchar(i)))
   
-  #for (region in names(epsSC)){
-   # epMut <- c(epMut, sum(epsSC[,region]))
-    #allMut <- c(allMut, sum(mutSC[,region]))
-    #epMut <- c(epMut, summaryTableMut[sample, region]) #original, non-independent samples
-    #allMut <- c(allMut, getTotalMut(dir, sample, substr(region, 7, nchar(region))))
-  #}
+  mutCloneTable <- data.frame(matrix(vector(), nrow=length(mutIDs), ncol=length(regions)))
+  row.names(mutCloneTable) <- mutIDs
+  names(mutCloneTable) <- regions
+  
+  sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
+  exData <- readExonicFile(sampleFileEx)
+  row.names(exData) <- exData$LineID
+  exData <- exData[,regions,drop=F]
+  for (line in mutIDs){
+    if (gtInfo=='NV'){
+    mutCloneTable[line,] <- sapply(exData[line,], function(i) 1*(as.numeric(unlist(strsplit(i, ':'))[2])>0))
+    }
+    if (gtInfo=='AD'){
+    mutCloneTable[line,] <- sapply(exData[line,], function(i) 1*(as.numeric(strsplit(strsplit(i, ':')[[1]][length(strsplit(i, ':')[[1]])],',')[[1]][2])>0) )
+    }
+  }
+  mutCloneTable[is.na(mutCloneTable)] <- 0
+  return(mutCloneTable)
 }
-plot(epMut, allMut, pch=19, xlab='Neoepitope mutations', ylab='All mutations')
-plot(epMut/allMut, pch=19, ylab='Neoepitope/all mutations')
-return(epMut/allMut)
+
+
+getMutationRatios <- function(dir, epTable, ratioTable, gtInfo='NV'){
+  
+for (sample in unique(epTable$Sample)){
+  eps <- subsetEpTable(epTable, sample, uniqueMutations = T)
+  regions <- grep('Region*', names(eps), value = T)
+  mutTable <- getMutPresenceTable(dir, sample, regions, gtInfo)
+  mutC <- row.names(mutTable)[rowSums(mutTable)==ncol(mutTable)]
+  mutP <- row.names(mutTable)[rowSums(mutTable)==1]
+  mutS <- row.names(mutTable)[(rowSums(mutTable)>1) & (rowSums(mutTable)<ncol(mutTable))]
+  ratioTable[sample, 'Clonal_All'] <- length(mutC)
+  ratioTable[sample, 'Private_All'] <- length(mutP)
+  ratioTable[sample, 'Shared_All'] <- length(mutS)
+  ratioTable[sample, 'Clonal_Ep'] <- sum(mutC %in% eps$LineID)
+  ratioTable[sample, 'Private_Ep'] <- sum(mutP %in% eps$LineID)
+  ratioTable[sample, 'Shared_Ep'] <- sum(mutS %in% eps$LineID)
+}
+return(ratioTable)
 }
 
 
@@ -144,10 +164,11 @@ return(epMut/allMut)
 
 setwd('~/CRCdata')
 
-#mutRatios = list()
 mutRatiosBatch = list()
+mutRatioTable = data.frame(matrix(vector(), ncol=6))
+names(mutRatioTable) <- c('Clonal_All', 'Clonal_Ep','Private_All','Private_Ep','Shared_All', 'Shared_Ep')
 
-dirList <- c('CRCmseq_Polyp', 'CRCmseq_Set', 'IBD')
+dirList <- c('CRCmseq_Polyp', 'CRCmseq_Set')
 #dirList <- c('IBD')
 
 for (dir in dirList){
@@ -176,37 +197,25 @@ barplot(summaryTable$Total/summaryTableMut$Total, col=barcolors[1], main='Averag
 summaryTableMut$Total_MUT <- sapply(row.names(summaryTableMut), function(x) getTotalMutFromFasta(dir, x))
 barplot(summaryTableMut$Total/summaryTableMut$Total_MUT, col=barcolors[1], main='Neoepitope mutations/ all mutations')
 
-#mutRatios[dir] <- list(getMutationRatios(dir, epTable))
+mutRatioTable <- getMutationRatios(dir, epTable, mutRatioTable)
 mutRatiosBatch[dir] <- list(summaryTableMut$Total/summaryTableMut$Total_MUT)
 dev.off()
 }
 
-
-#pdf('CRCmseq_comparison_summary.pdf', height=5, width=8)
-qqplot(mutRatios[[2]], mutRatios[[1]], pch=19, xlab='Neoepitope/all mutations in Carcinoma', ylab='Neoepitope/all mutations in Adenoma', main='QQplot')
-plot.ecdf(mutRatios[[2]], col='firebrick3', xlim=c(0.6, 0.9), ylab='CDF',
-          xlab='Neoepitope/all mutations', main=paste0('KS test p-value: ', ks.test(mutRatios[[1]], mutRatios[[2]])$p.value))
-plot.ecdf(mutRatios[[1]], col='skyblue3',add=T)
-plot.ecdf(mutRatiosBatch[[2]], col='darkred', xlim=c(0.65, 0.9))
-plot.ecdf(mutRatiosBatch[[1]], col='steelblue4',add=T)
-
-vioplot(mutRatios[[2]], mutRatios[[1]], col='wheat3', names = c('Carcinoma', 'Adenoma'))
-title('Neoeptiope/all mutation ratio')
-#dev.off()
-
-
+plot(log(mutRatioTable$Shared_All), log(mutRatioTable$Shared_Ep), pch=19, col=c(rep(2,5),rep(3,11)))
+segments(2,2, 5.5, 0.85*5.5, col='grey50')
 
 var.test(mutRatiosBatch[[1]], mutRatiosBatch[[2]])
 t.test(mutRatiosBatch[[1]], mutRatiosBatch[[2]])
 mutRatiosBatch['Random_proteome'] <- list(random.summary$EpMuts/random.summary$AllMuts)
 
 pdf('Neoepitope_ratio.pdf', height=5, width=8)
-plot.ecdf(mutRatiosBatch[[2]], col='darkred', xlim=c(0.65, 0.9))
+plot.ecdf(mutRatiosBatch[[2]], col='darkred', xlim=c(0.65, 0.92))
 plot.ecdf(mutRatiosBatch[[1]], col='steelblue4',add=T)
 plot.ecdf(mutRatiosBatch[[3]], col='darkgreen', add=T)
 plot.ecdf(mutRatiosBatch[[4]], col='grey75', add=T)
 dev.off()
-t.test(mutRatiosBatch[[3]], mutRatiosBatch[[4]])
+t.test(mutRatiosBatch[[1]], mutRatiosBatch[[4]])
 
 
 
