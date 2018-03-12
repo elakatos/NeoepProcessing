@@ -106,7 +106,7 @@ class TestProcessing(unittest.TestCase):
         RetrieveWT(infile, outfile)
         with open(outfile) as rf:
             lines = rf.readlines()
-        wtPeps = ['PQSSALTEGDYVPDSPALS\n', 'DHLDAASLQRFLQVEQKMA\n', 'FGRKMDRISSSSGLGCKVL\n']
+        wtPeps = ['PQSSALTEGDYVPDSPALS\n', 'DHLDAASLQRFLQVEQKMA\n', 'FGRKMDRISSSSGLGCKVL\n', 'MPGTGIVLIALSPNNH\n']
         self.assertEqual(wtPeps, lines[1::2])
 
 
