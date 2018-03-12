@@ -8,7 +8,7 @@ def DigestAllSamples(listFile, outFile):
     with open(listFile, 'r') as predlist:
         preds = predlist.readlines()
         pm = {'peptidematch_jar':'/data/home/hfx365/Software/PeptideMatchCMD_1.0.jar', 'reference_index': '/data2/home/hfx365/Reference/Ensembl/index'}
-        allEps = DigestSample(preds, True, pm)
+        allEps = DigestSample(preds, False, pm)
     with open(outFile, 'w') as outf:
         outf.write('peptide_pos\thla\tpeptide\tpep_core\tOf\tGp\tGl\tIp\tIl\tIcore\tIdentity\tScore\tRank\tCandidate\tBindLevel\tPatIndex\tNovelty\n')
         outf.write(('\n').join(allEps))
@@ -25,12 +25,12 @@ def DigestSample(toDigest, checkPeptides, pepmatchPaths):
     # output_file = "%s%s.digested.txt" % (FilePath, toDigest[0].split('/')[len(toDigest[0].split('/')) - 1].split('.epitopes.')[0])
 
     lines = []
-    pmInputFile = 'tmp/random.peptidematch.input'
+    pmInputFile = 'tmp/normal.peptidematch.input'
     pmInput = open(pmInputFile,'w')
     for epFile in toDigest:
-        patName = epFile.split('.')[0].split('_')[-1]
         print("INFO: Digesting neoantigens for %s" % (patName))
         with open(epFile.rstrip('\n'), 'r') as digest_in:
+            patName = epFile.rstrip('\n').replace('.netMHCout', '')
             for line in digest_in:
                 line = line.rstrip('\n')
                 try:
@@ -45,7 +45,7 @@ def DigestSample(toDigest, checkPeptides, pepmatchPaths):
                     pass
     pmInput.close()
     if checkPeptides:
-        pmOutFile = 'tmp/random.peptidematch.out'
+        pmOutFile = 'tmp/normal.peptidematch.out'
         print('Checking peptides against proteome')
         RunPepmatch(pmInputFile, pepmatchPaths['peptidematch_jar'], pepmatchPaths['reference_index'], pmOutFile)
         lines = ProcessPepmatch(pmOutFile, lines)
@@ -72,4 +72,4 @@ def ProcessPepmatch(pmfileName, epLines):
 
     return(appendedLines)
 
-DigestAllSamples('random_file_list.txt', 'random_proteome_all.txt')
+DigestAllSamples('wt_file_list.txt', 'WT.neoantigens.txt')
