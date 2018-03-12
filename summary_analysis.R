@@ -1,4 +1,5 @@
 library(vioplot)
+library(ggpubr)
 
 #Is the number of measured regions correlated with the ratio of clonal/subclonal epitopes?
 cor.test(summaryTable$Subclonal/summaryTable$Total, rowSums(summaryTable[,1:16]>0))
@@ -160,7 +161,7 @@ return(ratioTable)
 }
 
 
-# Compare Polyp and Set ---------------------------------------------------
+# Get statistics for Polyp and Set ---------------------------------------------------
 
 setwd('~/CRCdata')
 
@@ -202,12 +203,20 @@ mutRatiosBatch[dir] <- list(summaryTableMut$Total/summaryTableMut$Total_MUT)
 dev.off()
 }
 
+
+mutRatiosBatch['Random_proteome'] <- list(random.summary$EpMuts/random.summary$AllMuts)
+
+
+# Analyse Polyp, Set and Random -------------------------------------------
+
+ggqqplot(mutRatiosBatch[[2]])
+
+
 plot(log(mutRatioTable$Shared_All), log(mutRatioTable$Shared_Ep), pch=19, col=c(rep(2,5),rep(3,11)))
 segments(2,2, 5.5, 0.85*5.5, col='grey50')
 
 var.test(mutRatiosBatch[[1]], mutRatiosBatch[[2]])
 t.test(mutRatiosBatch[[1]], mutRatiosBatch[[2]])
-mutRatiosBatch['Random_proteome'] <- list(random.summary$EpMuts/random.summary$AllMuts)
 
 pdf('Neoepitope_ratio.pdf', height=5, width=8)
 plot.ecdf(mutRatiosBatch[[2]], col='darkred', xlim=c(0.65, 0.92))

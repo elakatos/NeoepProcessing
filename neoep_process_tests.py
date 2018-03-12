@@ -2,7 +2,7 @@ import unittest, os
 
 from annovar_preprocessing import getPairedNumbers, normalToZero, fillInfo, processTableFile, processAllFiles
 from hla_preprocessing import readInHLAwinners, composeHLAFile
-from antigen_novelty import ProcessPepmatch, RunPepmatch
+from antigen_novelty import ProcessPepmatch, RunPepmatch, RetrieveWT
 from generate_random import processProteomeFasta
 
 
@@ -99,6 +99,15 @@ class TestProcessing(unittest.TestCase):
                      'MLSLLHTSTLAVLGALCVYGAGHLEQPQISSTKTLSKTARLECVVSGITISATSVYWYRERPGEVIQFLVSISYDGTVRKESGIPSGKFEVDRIPETSTSTLTIHNVEKQDIATYYCALWEV\n',
                      'MRWALLVLLAFLSPASQKSSNLEGGTKSVTRPTRSSAEITCDLTVINAFYIHWYLHQEGK\n']
         self.assertEqual(correctLines, lines)
+
+    def test_wt_from_tumor(self):
+        infile = 'test/example_tumorpep.fasta'
+        outfile = 'test/example_normalpep.fasta'
+        RetrieveWT(infile, outfile)
+        with open(outfile) as rf:
+            lines = rf.readlines()
+        wtPeps = ['PQSSALTEGDYVPDSPALS\n', 'DHLDAASLQRFLQVEQKMA\n', 'FGRKMDRISSSSGLGCKVL\n']
+        self.assertEqual(wtPeps, lines[1::2])
 
 
 

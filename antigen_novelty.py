@@ -39,3 +39,32 @@ def ProcessPepmatch(pmfileName, epLines):
         appendedLines.append(line+'\t'+str(novel))
 
     return(appendedLines)
+
+def RetrieveWT(tpFasta, outFasta):
+    with open(tpFasta, 'r') as infasta:
+        allLines = infasta.readlines()
+
+    headerLines = allLines[0::2]
+    seqLines = allLines[1::2]
+
+    with open(outFasta, 'w') as of:
+        for i in range(len(headerLines)):
+            mutInfo = headerLines[i].rstrip('\n').split(';')[-3:]
+            seq = seqLines[i].rstrip('\n')
+            if seq[9] != mutInfo[-1][0]:
+                raise ValueError('Amino acid change in header does not match mutated peptide sequence!')
+            else:
+                newSeq = seq[:9]+mutInfo[-3]+seq[10:]
+                of.write(headerLines[i].rstrip('\n')+'\n'+newSeq+'\n')
+
+def CreateWTFiles(fileList, outFolder):
+    with open(fileList, 'r') as fl:
+        for line in fl.readlines():
+            fileName = line.rstrip('\n')
+            outfileName = outFolder+'/'+fileName.split('/')[-1].replace('.tmp.10.fasta', '.normal.fasta')
+            print('Generating WT sequences based on '+fileName+' into '+outfileName)
+            RetrieveWT(fileName, outfileName)
+
+CreateWTFiles('test/fastalist.txt', 'test')
+
+
