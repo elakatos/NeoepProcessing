@@ -10,6 +10,19 @@ cor.test(summaryTable$Shared/summaryTable$Total, log(summaryTable$Total))
 
 # Generate summary table for MUTATIONS ------------------------------------
 
+getSharedEps <- function(epTableEL, epTableBA){
+  epTable <- data.frame(matrix(vector(), ncol=ncol(epTableEL)))
+  names(epTable) <- names(epTableEL)
+  for (sample in unique(epTableEL$Sample)){
+    epsub <- subset(epTableEL, Sample==sample)
+    idsEL <- epsub$ID
+    idsBA <- subset(epTableBA, Sample==sample)$ID
+    epsub <- subset(epsub, ID %in% intersect(idsEL, idsBA))
+    epTable <- rbind(epTable, epsub)
+  }
+  return(epTable)
+}
+
 getStats <- function(eps, sample, table){
   tumorColumns = grep('Region*', names(eps))
   eps = eps[!duplicated(eps$LineID),]
@@ -79,6 +92,7 @@ getTotalMutFromFasta <- function(dir, sample){
 getMutationTable <- function(epTable, summaryTable){
 summaryTableMut <- summaryTable
 for (sample in row.names(summaryTableMut)){
+  print(sample)
   eps <- subsetEpTable(epTable, sample)
   summaryTableMut <- getStats(eps, sample, summaryTableMut)
 }
@@ -179,11 +193,21 @@ epTable <- read.table(paste0(dir, '/Neopred_results/Output.neoantigens.txt'), he
 names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
                     'Gl', 'Ip', 'Il', 'Icore', 'ID', 'Score', 'Rank', 'Cand', 'BindLevel', 'Novelty')
-epNon <- epTable[epTable$Novelty==0,]
 epTable <- epTable[epTable$Novelty!=0,]
 epTable <- epTable[epTable$Sample!='Set.10.snv',] #to disregard the replication of Set10
 
+# epTableBA <- read.table(paste0(dir, '/Neopred_results/Output_BA.neoantigens.txt'), header=F,
+#                       sep = '\t',stringsAsFactors = F, fill=T)
+# names(epTableBA) <- c('Sample', getRegionNames(ncol(epTableBA)-24), 'LineID', 'Chrom', 'Start',
+#                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
+#                     'Gl', 'Ip', 'Il', 'Icore', 'ID', 'Score', 'Affinity', 'Rank', 'Cand', 'BindLevel', 'Novelty')
+# epTableBA <- epTableBA[epTableBA$Novelty!=0,]
+# epTableBA <- epTableBA[epTableBA$Sample!='Set.10.snv',]
+# 
+# epTable <- getSharedEps(epTable, epTableBA)
+
 summaryTable <- read.table(paste0(dir,'/Neopred_results/Output.neoantigens.summarytable.txt'), header=T, row.names=1)
+summaryTable <- summaryTable[unique(epTable$Sample),]
 
 barcolors = c('firebrick', 'darkorange3', 'goldenrod1')
 barplot(t(as.matrix(summaryTable[,c('Clonal', 'Shared','Subclonal')]/summaryTable$Total)), col=barcolors, legend=c('Clonal', 'Shared','Subclonal'), las=2)
@@ -212,19 +236,27 @@ mutRatiosBatch['Random_proteome'] <- list(random.summary$EpMuts/random.summary$A
 ggqqplot(mutRatiosBatch[[2]])
 
 
-plot(log(mutRatioTable$Shared_All), log(mutRatioTable$Shared_Ep), pch=19, col=c(rep(2,5),rep(3,11)))
+plot(log(mutRatioTable$Clonal_All), log(mutRatioTable$Clonal_Ep), pch=19, col=c(rep(2,5),rep(3,11)))
 segments(2,2, 5.5, 0.85*5.5, col='grey50')
 
 var.test(mutRatiosBatch[[1]], mutRatiosBatch[[2]])
 t.test(mutRatiosBatch[[1]], mutRatiosBatch[[2]])
 
 pdf('Neoepitope_ratio.pdf', height=5, width=8)
-plot.ecdf(mutRatiosBatch[[2]], col='darkred', xlim=c(0.65, 0.92))
+plot.ecdf(mutRatiosBatch[[2]], col='darkred', xlim=c(0.5, 0.95))
 plot.ecdf(mutRatiosBatch[[1]], col='steelblue4',add=T)
-plot.ecdf(mutRatiosBatch[[3]], col='darkgreen', add=T)
-plot.ecdf(mutRatiosBatch[[4]], col='grey75', add=T)
+#plot.ecdf(mutRatiosBatch[[3]], col='darkgreen', add=T)
+plot.ecdf(mutRatiosBatch[[3]], col='grey75', add=T)
+
+plot(density(mutRatiosBatch[[2]]), col='darkred', xlim=c(0.5, 0.95), ylim=c(0, 8))
+lines(density(mutRatiosBatch[[1]]), col='steelblue4')
+lines(density(mutRatiosBatch[[3]]), col='grey75')
 dev.off()
-t.test(mutRatiosBatch[[1]], mutRatiosBatch[[4]])
+t.test(mutRatiosBatch[[1]], mutRatiosBatch[[2]])
+
+
+plot(density((mutRatioTable$Clonal_Ep/mutRatioTable$Clonal_All)[1:5]), ylim=c(0, 7.5))
+lines(density((mutRatioTable$Private_Ep/mutRatioTable$Private_All)[1:5]), col='darkred')
 
 
 

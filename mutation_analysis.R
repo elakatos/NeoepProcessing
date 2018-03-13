@@ -60,11 +60,11 @@ computeVafAD <- function(readData, colInd){
 }
 
 
-epTable <- read.table(paste0(dir, '/Neopred_results/Output.neoantigens.txt'), header=F,
+epTable <- read.table(paste0(dir, '/Neopred_results/Output_BA.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
-names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
+names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-24), 'LineID', 'Chrom', 'Start',
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
-                    'Gl', 'Ip', 'Il', 'Icore', 'ID', 'Score', 'Rank', 'Cand', 'BindLevel', 'Novelty')
+                    'Gl', 'Ip', 'Il', 'Icore', 'ID', 'Score', 'Affinity', 'Rank', 'Cand', 'BindLevel', 'Novelty')
 epNon <- epTable[epTable$Novelty==0,]
 epTable <- epTable[epTable$Novelty!=0,]
 #barplot(table(epNon$Sample)/table(epTable$Sample)*100, las=2)
@@ -110,17 +110,26 @@ epRankNotClonal <- eps[rowSums(eps[, tumorColumns])<4,]$Rank
 
 #setwd('~/RNAseq/Neoepitopes/')
 random.data <- read.table('random_proteome_all.txt', sep='\t',row.names=NULL, header=T,stringsAsFactors = F)
-names(random.data)[3] <- 'peptide'
 random.data.real <- subset(random.data, !((nchar(random.data$peptide)==9) &  (random.data$peptide_pos) %in% c(1,11)) )
-random.data.non <- subset(random.data.real, Novelty==0)
 random.data.real <- subset(random.data.real, Novelty==1)
+random.data.real$Sample <- random.data.real$PatIndex
+random.data.filtered <- subset(random.data.real, BindLevel!='N')
+
+# random.dataBA <- read.table('random_proteome_all_BA.txt', sep='\t',row.names=NULL, header=T,stringsAsFactors = F)
+# random.data.realBA <- subset(random.dataBA, !((nchar(random.dataBA$peptide)==9) &  (random.dataBA$peptide_pos) %in% c(1,11)) )
+# random.data.realBA <- subset(random.data.realBA, Novelty==1)
+# random.data.realBA$Sample <- random.data.realBA$PatIndex
+# random.data.filteredBA <- subset(random.data.realBA, BindLevel!='N')
+# 
+# names(random.data.filtered)[11] <- 'ID'; names(random.data.filteredBA)[11] <- 'ID'
+# random.data.filtered <- getSharedEps(random.data.filtered, random.data.filteredBA)
+# names(random.data.filtered)[11] <- 'Identity'
 
 random.summary <- data.frame(matrix(vector(), nrow=length(unique(random.data$PatIndex))))
 row.names(random.summary) <- unique(random.data$PatIndex)
 random.summary$AllPeptides <- sapply(row.names(random.summary), function(x) sum(random.data.real$PatIndex==as.numeric(x)))
 random.summary$AllMuts <- sapply(row.names(random.summary),
                                  function(x) length(unique(random.data.real[random.data.real$PatIndex==as.numeric(x),]$Identity)))
-random.data.filtered <- subset(random.data.real, BindLevel!='N')
 
 random.summary$Epitopes <- sapply(row.names(random.summary), function(x) sum(random.data.filtered$PatIndex==as.numeric(x)))
 random.summary$EpMuts <- sapply(row.names(random.summary),
@@ -130,7 +139,7 @@ random.summary$SB <- sapply(row.names(random.summary),
                                   function(x) sum((random.data.filtered$PatIndex==as.numeric(x)) * (random.data.filtered$BindLevel=='SB')))
 
 
-barplot(random.summary$EpMuts/random.summary$AllMuts)
+lines(density(random.summary$EpMuts/random.summary$AllMuts), col='red')
 barplot(random.summary$Epitopes/random.summary$EpMuts)
 barplot(random.summary$SB/random.summary$Epitopes)
 
