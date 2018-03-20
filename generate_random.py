@@ -33,12 +33,13 @@ def codonTable():
     'W':'CLSRG', 'R':'CWSGLPHQIMTK', 'G':'CWRSVADE', 'U':'SLCRG', 'O':'LSWQKEY'}
     return(codonDict)
 
-def sampleProteome(protFastaName, outName):
+def sampleProteome(protFastaName, outName, outNameNormal):
     aaOneLetter='GPAVLIMCFYWHKRQNEDST'
     codonDict=codonTable()
     with open(protFastaName, 'r') as pfasta:
         proteome = pfasta.readlines()
     N = len(proteome)
+    wtFile = open(outNameNormal, 'w')
     with open(outName, 'w') as outFile:
         mutNum = random.randint(100, 800)
         #mutNum = 10
@@ -53,9 +54,12 @@ def sampleProteome(protFastaName, outName):
                 if '*' in peptide:
                     pass
                 else:
+
                     possibleSubs=codonDict[peptide[9]]
                     new_peptide = peptide[0:9]+str(random.choice(list(possibleSubs)))+peptide[10:]
+                    wtFile.write('>line'+str(i)+';protein:'+str(pID)+';aa:'+str(aaID)+';mut:'+peptide[9]+'->'+new_peptide[9]+'WT\n' + peptide + '\n')
                     outFile.write('>line'+str(i)+';protein:'+str(pID)+';aa:'+str(aaID)+';mut:'+peptide[9]+'->'+new_peptide[9]+'\n' + new_peptide + '\n')
+    wtFile.close()
 
 def sampleHLAs(hlaListFile, N, outFile):
     with open(hlaListFile, 'r') as hlFile:
