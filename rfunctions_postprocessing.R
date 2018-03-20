@@ -242,19 +242,14 @@ filterAllWT <- function(WT, Mut){
 
 
 filterByWTBinding <- function(dir, epTable, randomsample = F){
-  if (randomsample){ WTname <- 'random_wt_proteome_all.txt'}
-  else { WTname <- paste0(dir, '/Neopred_results/WT.neoantigens.txt') }
+  WTname <- paste0(dir, '/Neopred_results/WT.neoantigens.txt') }
   WTTable <- read.table(WTname, header=T,
                         sep = '\t',stringsAsFactors = F, fill=T)
   WTTable <- subset(WTTable, !((nchar(WTTable$peptide)==9) &  (WTTable$peptide_pos) %in% c(1,11)) )
   
-  if (randomsample){
-    WTTable$Ident <- sapply(1:nrow(WTTable), function(i) paste0(WTTable[i,'Identity'], WTTable[i,'peptide_pos'], WTTable[i, 'hla'], nchar(WTTable[i, 'peptide']), WTTable[i, 'PatIndex']))
-  }
-  else{
     WTTable[nchar(WTTable$peptide)==9,]$peptide_pos <- WTTable[nchar(WTTable$peptide)==9,]$peptide_pos-1
     WTTable$Ident <- sapply(1:nrow(WTTable), function(i) paste0(WTTable[i,'Identity'], WTTable[i,'peptide_pos'], WTTable[i, 'hla'], nchar(WTTable[i, 'peptide']), substr(WTTable[i, 'PatIndex'], 1, nchar(WTTable[i,'PatIndex'])-7)))
-  }
+  
   epTable$Ident <- sapply(1:nrow(epTable), function(i) paste0(epTable[i,'Identity'], epTable[i,'pos'], epTable[i, 'hla'], nchar(epTable[i, 'peptide']),epTable[i, 'Sample']))
   epTable$MutID <- sapply(1:nrow(epTable), function(i) paste0(epTable[i, 'LineID'], epTable[i, 'Sample']))
   

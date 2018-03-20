@@ -57,6 +57,11 @@ random.data.nonwt <- filterByWTBinding('', random.data.real, randomsample=T)
 
 random.data.filtered <- subset(random.data.real, BindLevel!='N')
 
+WTTable <- read.table('random_wt_proteome_all.txt', header=T,
+                      sep = '\t',stringsAsFactors = F, fill=T)
+WTTable <- subset(WTTable, !((nchar(WTTable$peptide)==9) &  (WTTable$peptide_pos) %in% c(1,11)) )
+
+
 # random.dataBA <- read.table('random_proteome_all_BA.txt', sep='\t',row.names=NULL, header=T,stringsAsFactors = F)
 # random.data.realBA <- subset(random.dataBA, !((nchar(random.dataBA$peptide)==9) &  (random.dataBA$peptide_pos) %in% c(1,11)) )
 # random.data.realBA <- subset(random.data.realBA, Novelty==1)
