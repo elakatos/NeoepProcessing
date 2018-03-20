@@ -163,7 +163,7 @@ for (sample in unique(epTable$Sample)){
   mutTable <- getMutPresenceTable(dir, sample, regions, gtInfo)
   mutC <- row.names(mutTable)[rowSums(mutTable)==ncol(mutTable)]
   mutP <- row.names(mutTable)[rowSums(mutTable)==1]
-  mutS <- row.names(mutTable)[(rowSums(mutTable)>1) & (rowSums(mutTable)<ncol(mutTable))]
+  mutS <- row.names(mutTable)[(rowSums(mutTable)>1) & (rowSums(mutTable)<(ncol(mutTable)-1))]
   ratioTable[sample, 'Clonal_All'] <- length(mutC)
   ratioTable[sample, 'Private_All'] <- length(mutP)
   ratioTable[sample, 'Shared_All'] <- length(mutS)
@@ -206,6 +206,8 @@ epTable <- epTable[epTable$Sample!='Set.10.snv',] #to disregard the replication 
 # 
 # epTable <- getSharedEps(epTable, epTableBA)
 
+epTable <- filterByWTBinding(dir, epTable)
+
 summaryTable <- read.table(paste0(dir,'/Neopred_results/Output.neoantigens.summarytable.txt'), header=T, row.names=1)
 summaryTable <- summaryTable[unique(epTable$Sample),]
 
@@ -218,7 +220,7 @@ summaryTableMut <- getMutationTable(epTable, summaryTable)
 barplot(t(as.matrix(summaryTableMut[,c('Clonal', 'Shared','Subclonal')]/summaryTableMut$Total)), col=barcolors, legend=c('Clonal', 'Shared','Subclonal'), las=2)
 barplot(t(as.matrix(summaryTableMut[,c('Total_WB', 'Total_SB')]/summaryTableMut$Total)), col=barcolors, legend=c('Weak binders', 'Strong binders'), las=2)
 
-barplot(summaryTable$Total/summaryTableMut$Total, col=barcolors[1], main='Average neoepitopes per neoep mutation')
+#barplot(summaryTable$Total/summaryTableMut$Total, col=barcolors[1], main='Average neoepitopes per neoep mutation')
 summaryTableMut$Total_MUT <- sapply(row.names(summaryTableMut), function(x) getTotalMutFromFasta(dir, x))
 barplot(summaryTableMut$Total/summaryTableMut$Total_MUT, col=barcolors[1], main='Neoepitope mutations/ all mutations')
 
@@ -230,6 +232,11 @@ dev.off()
 
 mutRatiosBatch['Random_proteome'] <- list(random.summary$EpMuts/random.summary$AllMuts)
 
+
+mutRatioTable$Clonal_Ratio <- mutRatioTable$Clonal_Ep/mutRatioTable$Clonal_All
+mutRatioTable$Private_Ratio <- mutRatioTable$Private_Ep/mutRatioTable$Private_All
+mutRatioTable$Subclonal_Ratio <- (mutRatioTable$Private_Ep+mutRatioTable$Shared_Ep)/(mutRatioTable$Private_All+mutRatioTable$Shared_All)
+mutRatioTable[mutRatioTable$Private_Ep<12,'Private_Ratio'] <- NA
 
 # Analyse Polyp, Set and Random -------------------------------------------
 
@@ -259,6 +266,35 @@ plot(density((mutRatioTable$Clonal_Ep/mutRatioTable$Clonal_All)[1:5]), ylim=c(0,
 lines(density((mutRatioTable$Private_Ep/mutRatioTable$Private_All)[1:5]), col='darkred')
 
 
+#Plot with ggplot
+
+mycolors = c("#1984c0","#b32200", "#999999", "#19a0c0","#e23e00", "#e28a00")
+
+mRB <- data.frame('ratio' = unlist(mutRatiosBatch))
+mRB$set <- as.factor(c(rep('Adenoma', 5), rep('Carcinoma', 11), rep('Random', 49)))
+
+p <- ggplot(mRB, aes(x=set, y=ratio, fill=set)) + geom_violin() +
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=1, fill='black') +
+  theme_classic() + scale_fill_manual(values=mycolors[1:3])
+
+mRClonal <- data.frame('ratio' = c(mutRatioTable$Clonal_Ratio, mutRatioTable$Subclonal_Ratio, unlist(mutRatiosBatch[[3]])))
+mRClonal$set <- as.factor(c(rep('Ad-Clonal', 5), rep('Car-Clonal', 11), rep('Ad-Subclonal', 5), rep('Car-Subclonal', 11), rep('Random', 49)))
+
+p2 <- ggplot(mRClonal, aes(x=set, y=ratio, fill=set)) + geom_violin() +
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=0.7, fill='black') +
+  theme_classic() + scale_fill_manual(values=mycolors[c(1,4,2,5,3)])
+
+carcClonal <- data.frame('ratio' = c(mutRatioTable$Clonal_Ratio[6:16], mutRatioTable$Subclonal_Ratio[6:16], unlist(mutRatiosBatch[[3]])))
+carcClonal$set <- as.factor(c(rep('Clonal', 11), rep('Subclonal', 11), rep('Random', 49)))
+
+p3 <- ggplot(carcClonal, aes(x=set, y=ratio, fill=set)) + geom_violin() +
+  scale_x_discrete(limits=c("Clonal", "Subclonal", "Random")) +
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=0.7, fill='black') +
+  theme_classic() + scale_fill_manual(values=mycolors[c(2,3,5)])
+
+
+
+p4 = ggpaired(carcClonal[1:22,], x='set', y='ratio', color='set', line.color='gray', palette=mycolors[c(2,5)], line.size=0.4)
 
 # TCGA sample -------------------------------------------------------------
 
@@ -281,6 +317,9 @@ barplot(t(as.matrix(summaryTable[,c('Total_WB', 'Total_SB')]/summaryTable$Total)
 summaryTableMut <- getMutationTable(epTable, summaryTable)
 summaryTableMut$Total_MUT <- sapply(row.names(summaryTableMut), function(x) getTotalMut(dir, x))
 dev.off()
+
+
+
 
 
 # General mutations stats -------------------------------------------------

@@ -60,11 +60,11 @@ computeVafAD <- function(readData, colInd){
 }
 
 
-epTable <- read.table(paste0(dir, '/Neopred_results/Output_BA.neoantigens.txt'), header=F,
+epTable <- read.table(paste0(dir, '/Neopred_results/Output.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
-names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-24), 'LineID', 'Chrom', 'Start',
+names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
-                    'Gl', 'Ip', 'Il', 'Icore', 'ID', 'Score', 'Affinity', 'Rank', 'Cand', 'BindLevel', 'Novelty')
+                    'Gl', 'Ip', 'Il', 'Icore', 'ID', 'Score', 'Rank', 'Cand', 'BindLevel', 'Novelty')
 epNon <- epTable[epTable$Novelty==0,]
 epTable <- epTable[epTable$Novelty!=0,]
 #barplot(table(epNon$Sample)/table(epTable$Sample)*100, las=2)
@@ -147,6 +147,48 @@ hist(random.data.filtered[random.data.filtered$PatIndex==14,]$Rank, breaks=20)
 
 
 
+# Compare to normal peptide -----------------------------------------------
+
+filterAllWT <- function(WT, Mut){
+  nonWT<- row.names(subset(WT, BindLevel=='N'))
+  return(nonWT)
+}
+
+
+filterByWTBinding <- function(dir, epTable){
+  WTTable <- read.table(paste0(dir, '/Neopred_results/WT.neoantigens.txt'), header=T,
+                        sep = '\t',stringsAsFactors = F, fill=T)
+  WTTable <- subset(WTTable, !((nchar(WTTable$peptide)==9) &  (WTTable$peptide_pos) %in% c(1,11)) )
+  
+  WTTable[nchar(WTTable$peptide)==9,]$peptide_pos <- WTTable[nchar(WTTable$peptide)==9,]$peptide_pos-1
+  
+  WTTable$Ident <- sapply(1:nrow(WTTable), function(i) paste0(WTTable[i,'Identity'], WTTable[i,'peptide_pos'], WTTable[i, 'hla'], nchar(WTTable[i, 'peptide']), substr(WTTable[i, 'PatIndex'], 1, nchar(WTTable[i,'PatIndex'])-7)))
+  row.names(WTTable) <- WTTable$Ident
+  epTable$Ident <- sapply(1:nrow(epTable), function(i) paste0(epTable[i,'ID'], epTable[i,'pos'], epTable[i, 'hla'], nchar(epTable[i, 'peptide']),epTable[i, 'Sample']))
+  row.names(epTable) <- epTable$Ident
+  epTable$MutID <- sapply(1:nrow(epTable), function(i) paste0(epTable[i, 'LineID'], epTable[i, 'Sample']))
+  
+  WTTable.matched <- WTTable[epTable$Ident,]
+  
+  nonWT <- filterAllWT(WTTable.matched, epTable)
+  epTablemut <- epTable[nonWT,]
+  
+  p1 = ggplot(epTable, aes(x=Score)) + geom_density(aes(fill='All eps'), alpha=0.4) + geom_density(data=epTablemut, aes(fill='Filtered eps'), alpha=0.4) + theme_minimal()
+  
+  
+  epWTvsMut <- data.frame((table(epTablemut$Sample)/table(epTable$Sample)))
+  epDedup <- epTable[!duplicated(epTable$MutID),]
+  epMutDedup <- epTablemut[!duplicated(epTablemut$MutID),]
+  epWTvsMut <- rbind(epWTvsMut, data.frame((table(epMutDedup$Sample)/table(epDedup$Sample))))
+  epWTvsMut$Type <- c(rep('Epitopes', length(unique(epTablemut$Sample))), rep('Mutations', length(unique(epTablemut$Sample))))
+    
+  p2 = ggplot(epWTvsMut, aes(x=Var1, y=Freq, fill=Type)) + geom_bar(stat='identity', color = 'black',position=position_dodge()) +
+   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + scale_fill_brewer(palette="Reds")
+  
+  print(p1); print(p2);
+  
+  return(epTablemut)
+}
 
 # HLAs --------------------------------------------------------------------
 
