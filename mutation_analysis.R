@@ -47,19 +47,6 @@ hist(eps[rowSums(eps[, tumorColumns])==4,]$Rank, breaks=20  )
 epRankClonal <- eps[rowSums(eps[, tumorColumns])==4,]$Rank
 epRankNotClonal <- eps[rowSums(eps[, tumorColumns])<4,]$Rank
 
-#setwd('~/RNAseq/Neoepitopes/')
-random.data <- read.table('random_proteome_all.txt', sep='\t',row.names=NULL, header=T,stringsAsFactors = F)
-random.data.real <- subset(random.data, !((nchar(random.data$peptide)==9) &  (random.data$peptide_pos) %in% c(1,11)) )
-random.data.real <- subset(random.data.real, Novelty==1)
-random.data.real$Sample <- random.data.real$PatIndex
-
-random.data.nonwt <- filterByWTBinding('', random.data.real, randomsample=T)
-
-random.data.filtered <- subset(random.data.real, BindLevel!='N')
-
-WTTable <- read.table('random_wt_proteome_all.txt', header=T,
-                      sep = '\t',stringsAsFactors = F, fill=T)
-WTTable <- subset(WTTable, !((nchar(WTTable$peptide)==9) &  (WTTable$peptide_pos) %in% c(1,11)) )
 
 
 # random.dataBA <- read.table('random_proteome_all_BA.txt', sep='\t',row.names=NULL, header=T,stringsAsFactors = F)
@@ -69,20 +56,6 @@ WTTable <- subset(WTTable, !((nchar(WTTable$peptide)==9) &  (WTTable$peptide_pos
 # random.data.filteredBA <- subset(random.data.realBA, BindLevel!='N')
 # 
 # random.data.filtered <- getSharedEps(random.data.filtered, random.data.filteredBA)
-
-
-random.summary <- data.frame(matrix(vector(), nrow=length(unique(random.data$PatIndex))))
-row.names(random.summary) <- unique(random.data$PatIndex)
-random.summary$AllPeptides <- sapply(row.names(random.summary), function(x) sum(random.data.real$PatIndex==as.numeric(x)))
-random.summary$AllMuts <- sapply(row.names(random.summary),
-                                 function(x) length(unique(random.data.real[random.data.real$PatIndex==as.numeric(x),]$Identity)))
-
-random.summary$Epitopes <- sapply(row.names(random.summary), function(x) sum(random.data.filtered$PatIndex==as.numeric(x)))
-random.summary$EpMuts <- sapply(row.names(random.summary),
-                                 function(x) length(unique(random.data.filtered[random.data.filtered$PatIndex==as.numeric(x),]$Identity)))
-
-random.summary$SB <- sapply(row.names(random.summary),
-                                  function(x) sum((random.data.filtered$PatIndex==as.numeric(x)) * (random.data.filtered$BindLevel=='SB')))
 
 
 lines(density(random.summary$EpMuts/random.summary$AllMuts), col='red')

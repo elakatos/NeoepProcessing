@@ -9,9 +9,7 @@ cor.test(summaryTable$Shared/summaryTable$Total, log(summaryTable$Total))
 
 setwd('~/CRCdata')
 
-
-colReds = c('#fee0d2','#fc9272','#de2d26')
-colBlues = c('#deebf7','#9ecae1','#3182bd')
+analysisPostfix <- 'WTallfiltered'
 
 mutRatiosBatch = list()
 mutRatioTable = data.frame(matrix(vector(), ncol=6))
@@ -22,96 +20,90 @@ dirList <- c('CRCmseq_Polyp', 'CRCmseq_Set')
 
 for (dir in dirList){
   
-pdf(paste0(dir, '_summary_allbinding.pdf'), height = 5, width=8)
-epTable <- read.table(paste0(dir, '/Neopred_results/Output.neoantigens.txt'), header=F,
-                      sep = '\t',stringsAsFactors = F, fill=T)
-names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
-                    'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
-                    'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score', 'Rank', 'Cand', 'BindLevel', 'Novelty')
-epTable <- epTable[epTable$Novelty!=0,]
-epTable <- epTable[epTable$Sample!='Set.10.snv',] #to disregard the replication of Set10
-
-# epTable <- filterByBAPrediction(dir, epTable)
-
-#epTable <- filterByWTBinding(dir, epTable)
-
-summaryTable <- read.table(paste0(dir,'/Neopred_results/Output.neoantigens.summarytable.txt'), header=T, row.names=1)
-summaryTable <- summaryTable[unique(epTable$Sample),]
-
-#Adjust summary table in case neo-epitopes have been filtered
-summaryTable <- recalculateSummaryTable(epTable, summaryTable, mutations = F)
-summaryTableMut <- recalculateSummaryTable(epTable, summaryTable)
-
-clonality <- rbind(melt(as.matrix(summaryTable[,c('Clonal', 'Shared','Subclonal')])),
-                   melt(as.matrix(summaryTableMut[,c('Clonal', 'Shared','Subclonal')])))
-clonality$Type <- c(rep('P',3*nrow(summaryTable)), rep('M', 3*nrow(summaryTable)))
-pc <- ggplot(data=clonality, aes(x=Type, fill=Var2)) + geom_bar(aes(y=value),stat="identity", position = position_fill(reverse=T)) +
-  scale_y_continuous(labels = percent_format()) +
-  scale_fill_manual(values=rev(colReds)) + labs(x = "Tumour", y = "", fill="Clonality") + ggtitle("Clonality of neoepitopes") +
-  facet_grid(. ~ Var1)
-print(pc)
-
-eps <- melt(as.matrix(summaryTable[, 'Total', drop=F]/summaryTableMut[,'Total',drop=F]))
-pe <- ggplot(data=eps, aes(x=Var1, y=value)) + geom_bar(stat='identity') + scale_fill_manual(values=colBlues[1]) +
-  labs(x = "Tumour", y = "") + ggtitle("Average neo-epitopes per neo-ep mutation") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
-print(pe)
-
-
-summaryTableMut$Total_MUT <- sapply(row.names(summaryTableMut), function(x) getTotalMutFromFasta(dir, x))
-pem <- ggplot(data=summaryTableMut, aes(x=row.names(summaryTableMut), y=Total/Total_MUT)) + geom_bar(stat='identity', fill=colBlues[3]) +
-  scale_y_continuous(labels = percent_format()) + theme(axis.text.x = element_text(angle = 90, hjust = 1))+
-  labs(x = "Tumour", y = "") + ggtitle("Percentage of missense mutations producing at least one neo-epitope")
-print(pem)
-
-mutRatioTable <- getMutationRatios(dir, epTable, mutRatioTable)
-mutRatiosBatch[dir] <- list(summaryTableMut$Total/summaryTableMut$Total_MUT)
-dev.off()
+  pdf(paste0(dir, '_summary_',analysisPostfix,'.pdf'), height = 5, width=8)
+  epTable <- read.table(paste0(dir, '/Neopred_results/Output.neoantigens.txt'), header=F,
+                        sep = '\t',stringsAsFactors = F, fill=T)
+  names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
+                      'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
+                      'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score', 'Rank', 'Cand', 'BindLevel', 'Novelty')
+  epTable <- epTable[epTable$Novelty!=0,]
+  epTable <- epTable[epTable$Sample!='Set.10.recalled.snv',] #to disregard the replication of Set10
+  
+  #Filter epTable according to WT or alternative binding prediction
+  #epTable <- filterByBAPrediction(dir, epTable)
+  epTable <- filterByWTBinding(dir, epTable)
+  
+  summaryTableMut <- processSummaryOfSampleSet(dir, epTable)
+  mutRatioTable <- getMutationRatios(dir, epTable, mutRatioTable)
+  mutRatiosBatch[dir] <- list(summaryTableMut$Total/summaryTableMut$Total_MUT)
+  dev.off()
 }
 
 
+# Read in random data
+
+random.data <- read.table('random_proteome_all.txt', sep='\t',row.names=NULL, header=T,stringsAsFactors = F)
+random.data <- subset(random.data, !((nchar(random.data$peptide)==9) &  (random.data$peptide_pos) %in% c(1,11)) )
+random.data <- subset(random.data, Novelty==1)
+random.data$Sample <- random.data$PatIndex
+random.data.filtered <- subset(random.data, BindLevel!='N')
+
+#Filter according to WT or other binding information
+random.data.filtered <- filterRandomByWTBinding(random.data.filtered)
+
+random.summary <- processSummaryOfRandomSet(random.data, random.data.filtered)
+
 mutRatiosBatch['Random_proteome'] <- list(random.summary$EpMuts/random.summary$AllMuts)
 
-
+#Compute percentage of neo-ep associated mutations for mutations of specific clonality
 mutRatioTable$Clonal_Ratio <- mutRatioTable$Clonal_Ep/mutRatioTable$Clonal_All
 mutRatioTable$Private_Ratio <- mutRatioTable$Private_Ep/mutRatioTable$Private_All
 mutRatioTable$Subclonal_Ratio <- (mutRatioTable$Private_Ep+mutRatioTable$Shared_Ep)/(mutRatioTable$Private_All+mutRatioTable$Shared_All)
-mutRatioTable[mutRatioTable$Private_Ep<12,'Private_Ratio'] <- NA
+mutRatioTable[mutRatioTable$Private_Ep<10,'Private_Ratio'] <- NA
 
 # Analyse Polyp, Set and Random -------------------------------------------
 
+#are the mutation ratios normally distributed?
 ggqqplot(mutRatiosBatch[[2]])
 
-t.test(mutRatiosBatch[[1]], mutRatiosBatch[[2]])
+mycolors = c(colReds, colBlues,"#999999")
 
-#Plot with ggplot
-
-mycolors = c("#1984c0","#b32200", "#999999", "#19a0c0","#e23e00", "#e28a00")
-
+#Plot percentage of neo-ep mutations
 mRB <- data.frame('ratio' = unlist(mutRatiosBatch))
 mRB$set <- as.factor(c(rep('Adenoma', 5), rep('Carcinoma', 11), rep('Random', 50)))
+mycomp <- list( c("Adenoma", "Carcinoma"), c("Adenoma", "Random"), c('Carcinoma', 'Random') )
 
-p <- ggplot(mRB, aes(x=set, y=ratio, fill=set)) + geom_violin() +
+p1 <- ggplot(mRB, aes(x=set, y=ratio, fill=set)) + geom_violin() +
   geom_dotplot(binaxis='y', stackdir='center', dotsize=1, fill='black') +
-  theme_classic() + scale_fill_manual(values=mycolors[1:3])
+  scale_fill_manual(values=mycolors[c(3,6,7)]) +
+  stat_compare_means(label = "p.signif",comparisons=mycomp, hide.ns = T)
 
 mRClonal <- data.frame('ratio' = c(mutRatioTable$Clonal_Ratio, mutRatioTable$Subclonal_Ratio, unlist(mutRatiosBatch[[3]])))
-mRClonal$set <- as.factor(c(rep('Ad-Clonal', 5), rep('Car-Clonal', 11), rep('Ad-Subclonal', 5), rep('Car-Subclonal', 11), rep('Random', 49)))
+mRClonal$set <- as.factor(c(rep('Ad-Clonal', 5), rep('Car-Clonal', 11), rep('Ad-Subclonal', 5), rep('Car-Subclonal', 11), rep('Random', 50)))
+mycomp = list(c('Ad-Clonal', 'Ad-Subclonal'),c('Car-Clonal', 'Car-Subclonal'),c('Ad-Clonal', 'Car-Clonal'), c('Car-Clonal', 'Random'), c('Ad-Clonal', 'Random') )
 
 p2 <- ggplot(mRClonal, aes(x=set, y=ratio, fill=set)) + geom_violin() +
   geom_dotplot(binaxis='y', stackdir='center', dotsize=0.7, fill='black') +
-  theme_classic() + scale_fill_manual(values=mycolors[c(1,4,2,5,3)])
+  scale_fill_manual(values=mycolors[c(6,5,3,2,7)]) +
+  stat_compare_means(label = "p.signif",comparisons=mycomp, hide.ns = T, label.y = c(0.9, 0.97, 1.01, 1.01, 1.07))
 
 carcClonal <- data.frame('ratio' = c(mutRatioTable$Clonal_Ratio[6:16], mutRatioTable$Subclonal_Ratio[6:16], unlist(mutRatiosBatch[[3]])))
-carcClonal$set <- as.factor(c(rep('Clonal', 11), rep('Subclonal', 11), rep('Random', 49)))
+carcClonal$set <- as.factor(c(rep('Clonal', 11), rep('Subclonal', 11), rep('Random', 50)))
 
 p3 <- ggplot(carcClonal, aes(x=set, y=ratio, fill=set)) + geom_violin() +
   scale_x_discrete(limits=c("Clonal", "Subclonal", "Random")) +
   geom_dotplot(binaxis='y', stackdir='center', dotsize=0.7, fill='black') +
-  theme_classic() + scale_fill_manual(values=mycolors[c(2,3,5)])
+  scale_fill_manual(values=mycolors[c(2,3,5)])
 
 
 
-p4 = ggpaired(carcClonal[1:22,], x='set', y='ratio', color='set', line.color='gray', palette=mycolors[c(2,5)], line.size=0.4)
+p4 = ggpaired(carcClonal[1:22,], x='set', y='ratio', fill='set',line.color='gray40',
+              palette=mycolors[c(2,5)], line.size=0.4, point.size=2, ggtheme=theme_gray(), alpha=0.4) +
+  stat_compare_means(paired=T)
+
+pdf(paste0('Neoepitope_mutations_', analysisPostfix, '.pdf'), width=8, height=5)
+print(p1);print(p2);print(p4)
+dev.off()
 
 # TCGA sample -------------------------------------------------------------
 

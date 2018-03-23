@@ -1,5 +1,10 @@
 library(purrr)
 library(ggpubr)
+library(scales)
+library(reshape2)
+
+colReds = c('#fee0d2','#fc9272','#de2d26')
+colBlues = c('#deebf7','#9ecae1','#3182bd')
 
 
 readAvinput <- function(sampleFile){
@@ -130,7 +135,6 @@ getTotalMutFromFasta <- function(dir, sample){
 recalculateSummaryTable <- function(epTable, summaryTable, mutations=T){
   summaryTableMut <- summaryTable
   for (sample in row.names(summaryTableMut)){
-    print(sample)
     eps <- subsetEpTable(epTable, sample, uniqueMutations = mutations)
     summaryTableMut <- getStats(eps, sample, summaryTableMut)
   }
@@ -234,6 +238,26 @@ filterByBAPrediction <- function(dir, epTableEL){
   return(epTable)
 }
 
+plotFilterStatistics <- function(epTable, epTableFiltered){
+  
+  p1 = ggplot(epTable, aes(x=Score)) + geom_density(aes(fill='All eps'), alpha=0.4) + geom_density(data=epTableFiltered, aes(fill='Filtered eps'), alpha=0.4)+
+    labs(fill = 'Epitopes')
+  
+  #For each sample, compute the number of epitopes before and after filtering
+  epFilteredvsAll <- data.frame((table(epTableFiltered$Sample)/table(epTable$Sample)))
+  #Generate epTables that only contain one line per mutation
+  epDedup <- epTable[!duplicated(epTable$MutID),]
+  epDedupFiltered <- epTableFiltered[!duplicated(epTableFiltered$MutID),]
+  epFilteredvsAll <- rbind(epFilteredvsAll, data.frame((table(epDedupFiltered$Sample)/table(epDedup$Sample))))
+  epFilteredvsAll$Type <- c(rep('Epitopes', length(unique(epTableFiltered$Sample))), rep('Mutations', length(unique(epTableFiltered$Sample))))
+  
+  p2 = ggplot(epFilteredvsAll, aes(x=Var1, y=Freq, fill=Type)) + geom_bar(stat='identity',position=position_dodge(), colour='black') +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) + scale_fill_brewer(palette="Reds") +
+    ggtitle("Percentage of neo-epitopes and neo-epitope associated mutations retained after filtering") + labs(x="Tumour")
+  
+  print(p1); print(p2);
+}
+
 
 filterAllWT <- function(WT, Mut){
   nonWT<- row.names(subset(WT, BindLevel=='N'))
@@ -241,42 +265,106 @@ filterAllWT <- function(WT, Mut){
 }
 
 
-filterByWTBinding <- function(dir, epTable, randomsample = F){
-  WTname <- paste0(dir, '/Neopred_results/WT.neoantigens.txt') }
+filterByWTBinding <- function(dir, epTable){
+  WTname <- paste0(dir, '/Neopred_results/WT.neoantigens.txt') 
   WTTable <- read.table(WTname, header=T,
                         sep = '\t',stringsAsFactors = F, fill=T)
   WTTable <- subset(WTTable, !((nchar(WTTable$peptide)==9) &  (WTTable$peptide_pos) %in% c(1,11)) )
   
-    WTTable[nchar(WTTable$peptide)==9,]$peptide_pos <- WTTable[nchar(WTTable$peptide)==9,]$peptide_pos-1
-    WTTable$Ident <- sapply(1:nrow(WTTable), function(i) paste0(WTTable[i,'Identity'], WTTable[i,'peptide_pos'], WTTable[i, 'hla'], nchar(WTTable[i, 'peptide']), substr(WTTable[i, 'PatIndex'], 1, nchar(WTTable[i,'PatIndex'])-7)))
-  
+  WTTable[nchar(WTTable$peptide)==9,]$peptide_pos <- WTTable[nchar(WTTable$peptide)==9,]$peptide_pos-1
+  #Generate unique identifiers to match WT and mutated table entries
+  WTTable$Ident <- sapply(1:nrow(WTTable), function(i) paste0(WTTable[i,'Identity'], WTTable[i,'peptide_pos'], WTTable[i, 'hla'], nchar(WTTable[i, 'peptide']), substr(WTTable[i, 'PatIndex'], 1, nchar(WTTable[i,'PatIndex'])-7)))
   epTable$Ident <- sapply(1:nrow(epTable), function(i) paste0(epTable[i,'Identity'], epTable[i,'pos'], epTable[i, 'hla'], nchar(epTable[i, 'peptide']),epTable[i, 'Sample']))
-  epTable$MutID <- sapply(1:nrow(epTable), function(i) paste0(epTable[i, 'LineID'], epTable[i, 'Sample']))
-  
   row.names(WTTable) <- WTTable$Ident
   row.names(epTable) <- epTable$Ident
-  
   WTTable.matched <- WTTable[epTable$Ident,]
   
+  #Generate unique mutation identifier for mutated table entries
+  epTable$MutID <- sapply(1:nrow(epTable), function(i) paste0(epTable[i, 'LineID'], epTable[i, 'Sample']))
+
+  #Filter
   nonWT <- filterAllWT(WTTable.matched, epTable)
   epTablemut <- epTable[nonWT,]
   
-  p1 = ggplot(epTable, aes(x=Score)) + geom_density(aes(fill='All eps'), alpha=0.4) + geom_density(data=epTablemut, aes(fill='Filtered eps'), alpha=0.4)+
-    theme_minimal() + labs(fill = 'Epitopes')
-  
-  epWTvsMut <- data.frame((table(epTablemut$Sample)/table(epTable$Sample)))
-  epDedup <- epTable[!duplicated(epTable$MutID),]
-  epMutDedup <- epTablemut[!duplicated(epTablemut$MutID),]
-  epWTvsMut <- rbind(epWTvsMut, data.frame((table(epMutDedup$Sample)/table(epDedup$Sample))))
-  epWTvsMut$Type <- c(rep('Epitopes', length(unique(epTablemut$Sample))), rep('Mutations', length(unique(epTablemut$Sample))))
-  
-  p2 = ggplot(epWTvsMut, aes(x=Var1, y=Freq, fill=Type)) + geom_bar(stat='identity',position=position_dodge()) +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1)) + scale_fill_brewer(palette="Reds") +
-    ggtitle("Percentage of epitopes retained after filtering based on corresponding WT binding") + labs(x="Tumour")
-  
-  print(p1); print(p2);
+  plotFilterStatistics(epTable, epTablemut)
   
   return(epTablemut)
 }
 
+filterRandomByWTBinding <- function(random.data){
+  WTTable <- read.table('random_wt_proteome_all.txt', header=T,sep = '\t',stringsAsFactors = F, fill=T)
+  WTTable <- subset(WTTable, !((nchar(WTTable$peptide)==9) &  (WTTable$peptide_pos) %in% c(1,11)) )
+  #Match WT and mutated table entries (utilising the 1-1 correspondence)
+  WTTable.matched <- WTTable[row.names(random.data),]
+  
+  #Generate unique mutation identifier for mutated table entries
+  random.data$MutID <- sapply(1:nrow(random.data), function(i) paste0(random.data[i, 'Identity'],'**', random.data[i, 'PatIndex']))
+  #Filter
+  nonWT <- filterAllWT(WTTable.matched, random.data)
+  random.data.filtered <- random.data[nonWT,]
+  
+  plotFilterStatistics(random.data, random.data.filtered)
+  
+  return(random.data.filtered)
+  
+}
+
+processSummaryOfSampleSet <- function(dir, epTable){
+  summaryTable <- read.table(paste0(dir,'/Neopred_results/Output.neoantigens.summarytable.txt'), header=T, row.names=1)
+  summaryTable <- summaryTable[unique(epTable$Sample),]
+  
+  #Adjust summary table in case neo-epitopes have been filtered
+  summaryTable <- recalculateSummaryTable(epTable, summaryTable, mutations = F)
+  #Compute statistics from deduplicated information (1 entry per mutation in epTable)
+  summaryTableMut <- recalculateSummaryTable(epTable, summaryTable)
+  
+  #Plot the percentage ratios of clonality information of neo-eps and neo-ep mutations
+  clonality <- rbind(melt(as.matrix(summaryTable[,c('Clonal', 'Shared','Subclonal')])),
+                     melt(as.matrix(summaryTableMut[,c('Clonal', 'Shared','Subclonal')])))
+  clonality$Type <- c(rep('P',3*nrow(summaryTable)), rep('M', 3*nrow(summaryTable)))
+  pc <- ggplot(data=clonality, aes(x=Type, fill=Var2)) + geom_bar(aes(y=value),stat="identity", position = position_fill(reverse=T), colour='black') +
+    scale_y_continuous(labels = percent_format()) +
+    scale_fill_manual(values=rev(colReds)) + labs(x = "Tumour", y = "", fill="Clonality") + ggtitle("Clonality of neoepitopes") +
+    facet_grid(. ~ Var1)
+  print(pc)
+  
+  #Plot the average number of epitopes (peptides) produced by mutations that lead to epitopes
+  eps <- melt(as.matrix(summaryTable[, 'Total', drop=F]/summaryTableMut[,'Total',drop=F]))
+  pe <- ggplot(data=eps, aes(x=Var1, y=value)) + geom_bar(stat='identity', fill=colBlues[3], color='black') +
+    labs(x = "Tumour", y = "") + ggtitle("Average neo-epitopes per neo-ep mutation") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  print(pe)
+  
+  #Plot the number of mutations giving rise to neo-epitopes over all missense (exonic, aa-changing) mutations
+  summaryTableMut$Total_MUT <- sapply(row.names(summaryTableMut), function(x) getTotalMutFromFasta(dir, x))
+  pem <- ggplot(data=summaryTableMut, aes(x=row.names(summaryTableMut), y=Total/Total_MUT)) + geom_bar(stat='identity', fill=colBlues[3], color='black') +
+    scale_y_continuous(labels = percent_format()) + theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+    labs(x = "Tumour", y = "") + ggtitle("Percentage of missense mutations producing at least one neo-epitope")
+  print(pem)
+  
+  #Is there a connection between the percentage of clonal mutations and percentage of neo-ep mutations?
+  pemc <- ggplot(data=summaryTableMut, aes(x=Clonal/Total, y=Total/Total_MUT)) + geom_point(size=3) +
+    geom_smooth(method='lm', color=colBlues[3]) + labs(x="Percentage of mutations clonal", y="Percentage of mutation associated with neo-eps")
+  print(pemc)
+  
+  return(summaryTableMut)
+}
+
+processSummaryOfRandomSet <- function(random.data.real, random.data.filtered){
+  #Create data frame to hold data
+  random.summary <- data.frame(matrix(vector(), nrow=length(unique(random.data.real$PatIndex))))
+  row.names(random.summary) <- unique(random.data.real$PatIndex)
+  
+  #Calculate all mutations and all novel peptides produced by them
+  random.summary$AllPeptides <- sapply(row.names(random.summary), function(x) sum(random.data.real$PatIndex==as.numeric(x)))
+  random.summary$AllMuts <- sapply(row.names(random.summary),
+                                   function(x) length(unique(random.data.real[random.data.real$PatIndex==as.numeric(x),]$Identity)))
+  #Calculate amount of neo-peptides that are neo-epitopes and all mutations producing associated with neo-epitopes
+  random.summary$Epitopes <- sapply(row.names(random.summary), function(x) sum(random.data.filtered$PatIndex==as.numeric(x)))
+  random.summary$EpMuts <- sapply(row.names(random.summary),
+                                  function(x) length(unique(random.data.filtered[random.data.filtered$PatIndex==as.numeric(x),]$Identity)))
+  random.summary$SB <- sapply(row.names(random.summary),
+                              function(x) sum((random.data.filtered$PatIndex==as.numeric(x)) * (random.data.filtered$BindLevel=='SB')))
+  
+  return(random.summary)
+}
 
