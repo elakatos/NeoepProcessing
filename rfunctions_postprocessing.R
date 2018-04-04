@@ -264,8 +264,13 @@ filterAllWT <- function(WT, Mut){
   return(nonWT)
 }
 
+filterHigherWT <- function(WT, Mut){
+  nonWT <- row.names(Mut[WT$Score < Mut$Score*0.3,])
+  return(nonWT)
+}
 
-filterByWTBinding <- function(dir, epTable){
+
+filterByWTBinding <- function(dir, epTable, filt){
   WTname <- paste0(dir, '/Neopred_results/WT.neoantigens.txt') 
   WTTable <- read.table(WTname, header=T,
                         sep = '\t',stringsAsFactors = F, fill=T)
@@ -277,13 +282,24 @@ filterByWTBinding <- function(dir, epTable){
   epTable$Ident <- sapply(1:nrow(epTable), function(i) paste0(epTable[i,'Identity'], epTable[i,'pos'], epTable[i, 'hla'], nchar(epTable[i, 'peptide']),epTable[i, 'Sample']))
   row.names(WTTable) <- WTTable$Ident
   row.names(epTable) <- epTable$Ident
-  WTTable.matched <- WTTable[epTable$Ident,]
+  sharedIdent <- intersect(WTTable$Ident, epTable$Ident) #To ensure that no NAs are introduced, in case no WT information available for some reason
+  if (length(sharedIdent)<length(epTable$Ident)){print('Warning: some neoepitopes might miss matching wild-type information!\n')}
+  WTTable.matched <- WTTable[sharedIdent,]; epTable <- epTable[sharedIdent,]
   
   #Generate unique mutation identifier for mutated table entries
   epTable$MutID <- sapply(1:nrow(epTable), function(i) paste0(epTable[i, 'LineID'], epTable[i, 'Sample']))
 
   #Filter
-  nonWT <- filterAllWT(WTTable.matched, epTable)
+  if (filt %in% c('all', 'a')){
+    nonWT <- filterAllWT(WTTable.matched, epTable)
+  }
+  else if (filt %in% c('higher', 'h')){
+      nonWT <- filterHigherWT(WTTable.matched, epTable)
+  }
+  else {
+    print('Filtering mode is not specified, all entries are retained.\n')
+    nonWT <- sharedIdent
+    }
   epTablemut <- epTable[nonWT,]
   
   plotFilterStatistics(epTable, epTablemut)
@@ -291,7 +307,7 @@ filterByWTBinding <- function(dir, epTable){
   return(epTablemut)
 }
 
-filterRandomByWTBinding <- function(random.data){
+filterRandomByWTBinding <- function(random.data, filt){
   WTTable <- read.table('random_wt_proteome_all.txt', header=T,sep = '\t',stringsAsFactors = F, fill=T)
   WTTable <- subset(WTTable, !((nchar(WTTable$peptide)==9) &  (WTTable$peptide_pos) %in% c(1,11)) )
   #Match WT and mutated table entries (utilising the 1-1 correspondence)
@@ -300,7 +316,17 @@ filterRandomByWTBinding <- function(random.data){
   #Generate unique mutation identifier for mutated table entries
   random.data$MutID <- sapply(1:nrow(random.data), function(i) paste0(random.data[i, 'Identity'],'**', random.data[i, 'PatIndex']))
   #Filter
-  nonWT <- filterAllWT(WTTable.matched, random.data)
+  
+  if (filt %in% c('all', 'a')){
+    nonWT <- filterAllWT(WTTable.matched, random.data)
+  }
+  else if (filt %in% c('higher', 'h')){
+    nonWT <- filterHigherWT(WTTable.matched, random.data)
+  }
+  else {
+    print('Filtering mode is not specified, all entries are retained.\n')
+    nonWT <- row.names(random.data)
+  }
   random.data.filtered <- random.data[nonWT,]
   
   plotFilterStatistics(random.data, random.data.filtered)

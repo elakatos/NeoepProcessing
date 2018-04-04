@@ -9,7 +9,7 @@ cor.test(summaryTable$Shared/summaryTable$Total, log(summaryTable$Total))
 
 setwd('~/CRCdata')
 
-analysisPostfix <- 'WTallfiltered'
+analysisPostfix <- 'WThighfiltered'
 
 mutRatiosBatch = list()
 mutRatioTable = data.frame(matrix(vector(), ncol=6))
@@ -31,7 +31,7 @@ for (dir in dirList){
   
   #Filter epTable according to WT or alternative binding prediction
   #epTable <- filterByBAPrediction(dir, epTable)
-  epTable <- filterByWTBinding(dir, epTable)
+  epTable <- filterByWTBinding(dir, epTable, 'high')
   
   summaryTableMut <- processSummaryOfSampleSet(dir, epTable)
   mutRatioTable <- getMutationRatios(dir, epTable, mutRatioTable)
@@ -49,11 +49,11 @@ random.data$Sample <- random.data$PatIndex
 random.data.filtered <- subset(random.data, BindLevel!='N')
 
 #Filter according to WT or other binding information
-random.data.filtered <- filterRandomByWTBinding(random.data.filtered)
+random.data.filtered <- filterRandomByWTBinding(random.data.filtered, 'high')
 
 random.summary <- processSummaryOfRandomSet(random.data, random.data.filtered)
 
-mutRatiosBatch['Random_proteome'] <- list(random.summary$EpMuts/random.summary$AllMuts)
+mutRatiosBatch['Random'] <- list(random.summary$EpMuts/random.summary$AllMuts)
 
 #Compute percentage of neo-ep associated mutations for mutations of specific clonality
 mutRatioTable$Clonal_Ratio <- mutRatioTable$Clonal_Ep/mutRatioTable$Clonal_All
@@ -67,10 +67,12 @@ mutRatioTable[mutRatioTable$Private_Ep<10,'Private_Ratio'] <- NA
 ggqqplot(mutRatiosBatch[[2]])
 
 mycolors = c(colReds, colBlues,"#999999")
+nA <- 5
+nC <- 11
 
 #Plot percentage of neo-ep mutations
 mRB <- data.frame('ratio' = unlist(mutRatiosBatch))
-mRB$set <- as.factor(c(rep('Adenoma', 5), rep('Carcinoma', 11), rep('Random', 50)))
+mRB$set <- as.factor(c(rep('Adenoma', nA), rep('Carcinoma', nC), rep('Random', 50)))
 mycomp <- list( c("Adenoma", "Carcinoma"), c("Adenoma", "Random"), c('Carcinoma', 'Random') )
 
 p1 <- ggplot(mRB, aes(x=set, y=ratio, fill=set)) + geom_violin() +
@@ -78,26 +80,22 @@ p1 <- ggplot(mRB, aes(x=set, y=ratio, fill=set)) + geom_violin() +
   scale_fill_manual(values=mycolors[c(3,6,7)]) +
   stat_compare_means(label = "p.signif",comparisons=mycomp, hide.ns = T)
 
-mRClonal <- data.frame('ratio' = c(mutRatioTable$Clonal_Ratio, mutRatioTable$Subclonal_Ratio, unlist(mutRatiosBatch[[3]])))
-mRClonal$set <- as.factor(c(rep('Ad-Clonal', 5), rep('Car-Clonal', 11), rep('Ad-Subclonal', 5), rep('Car-Subclonal', 11), rep('Random', 50)))
+mRClonal <- data.frame('ratio' = c(mutRatioTable$Clonal_Ratio, mutRatioTable$Subclonal_Ratio, unlist(mutRatiosBatch[['Random']])))
+mRClonal$set <- as.factor(c(rep('Ad-Clonal', nA), rep('Car-Clonal', nC), rep('Ad-Subclonal', nA), rep('Car-Subclonal', nC), rep('Random', 50)))
 mycomp = list(c('Ad-Clonal', 'Ad-Subclonal'),c('Car-Clonal', 'Car-Subclonal'),c('Ad-Clonal', 'Car-Clonal'), c('Car-Clonal', 'Random'), c('Ad-Clonal', 'Random') )
 
 p2 <- ggplot(mRClonal, aes(x=set, y=ratio, fill=set)) + geom_violin() +
   geom_dotplot(binaxis='y', stackdir='center', dotsize=0.7, fill='black') +
   scale_fill_manual(values=mycolors[c(6,5,3,2,7)]) +
-  stat_compare_means(label = "p.signif",comparisons=mycomp, hide.ns = T, label.y = c(0.9, 0.97, 1.01, 1.01, 1.07))
+  stat_compare_means(label = "p.signif",comparisons=mycomp, hide.ns = T) #label.y = c(0.9, 0.97, 1.01, 1.01, 1.07)
 
-carcClonal <- data.frame('ratio' = c(mutRatioTable$Clonal_Ratio[6:16], mutRatioTable$Subclonal_Ratio[6:16], unlist(mutRatiosBatch[[3]])))
-carcClonal$set <- as.factor(c(rep('Clonal', 11), rep('Subclonal', 11), rep('Random', 50)))
-
-p3 <- ggplot(carcClonal, aes(x=set, y=ratio, fill=set)) + geom_violin() +
-  scale_x_discrete(limits=c("Clonal", "Subclonal", "Random")) +
-  geom_dotplot(binaxis='y', stackdir='center', dotsize=0.7, fill='black') +
-  scale_fill_manual(values=mycolors[c(2,3,5)])
+carcClonal <- subset(mRClonal, set %in% c('Car-Clonal', 'Car-Subclonal', 'Random'))
+#p3 <- ggplot(carcClonal, aes(x=set, y=ratio, fill=set)) + geom_violin() +
+#  geom_dotplot(binaxis='y', stackdir='center', dotsize=0.7, fill='black') +
+#  scale_fill_manual(values=mycolors[c(3,2,7)])
 
 
-
-p4 = ggpaired(carcClonal[1:22,], x='set', y='ratio', fill='set',line.color='gray40',
+p4 = ggpaired(carcClonal[carcClonal$set!='Random',], x='set', y='ratio', fill='set',line.color='gray40',
               palette=mycolors[c(2,5)], line.size=0.4, point.size=2, ggtheme=theme_gray(), alpha=0.4) +
   stat_compare_means(paired=T)
 
