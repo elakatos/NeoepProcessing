@@ -1,4 +1,5 @@
 
+dir <- 'CRCmseq_Set'
 epTable <- read.table(paste0(dir, '/Neopred_results/Output.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
 names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
@@ -6,37 +7,105 @@ names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom
                     'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score', 'Rank', 'Cand', 'BindLevel', 'Novelty')
 epNon <- epTable[epTable$Novelty==0,]
 epTable <- epTable[epTable$Novelty!=0,]
-#barplot(table(epNon$Sample)/table(epTable$Sample)*100, las=2)
+
+epTable <- filterByWTBinding(dir, epTable, 'a')
+
 epTableStrong <- epTable[epTable$BindLevel=='SB',]
 
-sample = 'Oxford_IBD1.mutectCalls..somatic'
-#sampleFile <- paste0(dir, '/avready/',sample,'.avinput')
+vafTestDF <- data.frame(matrix(vector(), ncol=4))
+names(vafTestDF) <- c('Sample', 'Region', 'UB', 'pValue')
+
+
+for (sample in unique(epTable$Sample)){
 sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
-#avinput <- readAvinput(sampleFile)
 exonic <- readExonicFile(sampleFileEx)
-eps <- subsetEpTable(epTable, sample, unique=T)
+eps <- subsetEpTable(epTableStrong, sample, unique=T)
 
 tumorColumns <- grep('Region*', names(exonic))
 isEpMutation <- (exonic$LineID %in% eps$LineID)
-uB <- 0.3
-lB <- 0.05
-pdf(paste0(dir,':',sample,'_s.pdf'),height=5,width=8)
+uB <- 1.0
+lB <- 0.0
+pdf(paste0(dir,'_',sample,'.pdf'),height=5,width=8)
 par(mfrow=c(1,2))
 for (i in tumorColumns){
-  allVafs <- computeVafAD(exonic, i)
-  epVafs <- computeVafAD(exonic[isEpMutation,], i)
+  allVafs <- computeVaf(exonic, i)
+  epVafs <- computeVaf(exonic[isEpMutation,], i)
   
   allVafsF <- allVafs[(allVafs>lB) & (allVafs< uB)]
   epVafsF <- epVafs[(epVafs>lB) & (epVafs < uB)]
   
-  print(length(allVafsF))
   qqplot(allVafsF, epVafsF, pch=19, xlab='All mutations', ylab='Neoepitope mutations', main='QQplot')
   plot.ecdf(allVafsF,col='black', ylab='CDF', xlab='VAF')
   plot.ecdf(epVafsF,col='grey50', add=T)
+  print(sample)
   print(ks.test(allVafsF, epVafsF))
 }
 dev.off()
+}
 
+
+#VAF plotting of selected
+sample = 'Set.10.recalled.snv'
+sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
+exonic <- readExonicFile(sampleFileEx)
+eps <- subsetEpTable(epTableStrong, sample, unique=T)
+
+isEpMutation <- (exonic$LineID %in% eps$LineID)
+
+uB<-0.65
+lB<-0.0
+
+i=22+2
+allVafs <- computeVaf(exonic, i)
+epVafs <- computeVaf(exonic[isEpMutation,], i)
+allVafsF <- allVafs[(allVafs>lB) & (allVafs< uB)]
+epVafsF <- epVafs[(epVafs>lB) & (epVafs < uB)]
+vafDF <- data.frame('vaf'=allVafsF, 'type'='All mutations')
+epDF <- data.frame('vaf'=epVafsF, 'type'='Neo-epitope mutations')
+DF <- rbind(vafDF, epDF)
+
+mycols = c('#d0cc9e','#4165d1', '#e13512')
+
+
+ggplot(vafDF, aes(x=vaf, y=..scaled..)) + geom_density(fill='grey30',alpha=0.4, adjust=0.8) +
+  geom_density(data=epDF, aes(x=vaf, y=..scaled..), alpha=0.4, fill='red', adjust=1)
+
+p1 = ggplot(DF, aes(x=vaf, y=..scaled.., fill = type)) + geom_density(alpha=0.5, adjust=1) +
+  scale_fill_manual(values=mycols)
+
+pdf('~/Dropbox/Neoepitopes/Prelim_vaf_S10:R2.pdf', width=8, height=5)
+pl <- p1+scale_x_continuous(limits=c(0.01, 0.7)) + theme_bw() +
+  theme(text = element_text(size=16 ,family='sans'), legend.position = c(0.8, 0.7), legend.background = element_rect(colour='black')) +
+  labs(x='Variant allele frequency', y='Frequency') + guides(fill=guide_legend(title=NULL))
+print(pl)
+dev.off()
+
+  #geom_bar(data=epDF, aes(x=vaf, y=height), width=0.005, stat="identity", fill='red')
+  #geom_vline(xintercept = epVafsF, linetype='dotted')
+
+
+# Example VAF generation + plotting
+
+clonalVAFs <- rbinom(5, 40, 0.45)/40
+subclonalVAfs <- vector()
+for (i in 1:5){
+  genVAFs <- rbinom(5*(2^i), 50, (0.5/(2^i)+rnorm(1,0,0.04)))/50
+  subclonalVAfs <- c(subclonalVAfs, genVAFs)
+}
+
+vafDF <- data.frame('vaf' = c(clonalVAFs, subclonalVAfs))
+vafDF <- vafDF[vafDF$vaf>0.025,,drop=F]
+ggplot(vafDF_saved_ep, aes(x=vaf, y=..scaled..)) + geom_density(adjust=1)
+
+
+p1 = ggplot(vafDF_saved, aes(x=vaf, y=..scaled..)) + geom_density(fill='#889174', adjust=0.8)
+
+pdf('~/Dropbox/Neoepitopes/Example_VAF_i.pdf', width=6, height=5)
+pl <- p1+scale_x_continuous(limits=c(0.02, 0.7)) + scale_y_continuous(breaks=c(0.25,0.75)) +
+  theme_bw() + theme(text = element_text(size=20 ,family='sans')) +
+  labs(x='', y='') + guides(fill=guide_legend(title=NULL))
+print(pl)
+dev.off()
 
 # Epitope distribution ----------------------------------------------------
 
@@ -46,6 +115,8 @@ hist(eps[rowSums(eps[, tumorColumns])==4,]$Rank, breaks=20  )
 
 epRankClonal <- eps[rowSums(eps[, tumorColumns])==4,]$Rank
 epRankNotClonal <- eps[rowSums(eps[, tumorColumns])<4,]$Rank
+
+
 
 
 

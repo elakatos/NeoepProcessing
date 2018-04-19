@@ -110,20 +110,6 @@ getStatsTotal <- function(dir, sample, table){
   return(table)
 }
 
-getTotalMut <- function(dir, sample, region=''){
-  sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
-  if (length(grep('TCGA', dir))!=0){
-    exonic <- readExonicFileTCGA(sampleFileEx)
-  }
-  else{
-    exonic <- readExonicFile(sampleFileEx)}
-  if (region!=''){
-    regionMut <- as.numeric(map(strsplit(exonic[,region], ':'),2))>0
-    exonic <- exonic[regionMut,]
-  }
-  #return(nrow(exonic))
-  return(sum(exonic$MutType=='nonsynonymous SNV')) #get only nonsynonymous exonic mutations
-}
 
 getTotalMutFromFasta <- function(dir, sample){
   #returns only mutations that were inputted into netMHC
