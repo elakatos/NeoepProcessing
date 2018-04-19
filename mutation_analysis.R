@@ -80,9 +80,6 @@ pl <- p1+scale_x_continuous(limits=c(0.01, 0.7)) + theme_bw() +
 print(pl)
 dev.off()
 
-  #geom_bar(data=epDF, aes(x=vaf, y=height), width=0.005, stat="identity", fill='red')
-  #geom_vline(xintercept = epVafsF, linetype='dotted')
-
 
 # Example VAF generation + plotting
 
