@@ -9,7 +9,7 @@ cor.test(summaryTable$Shared/summaryTable$Total, log(summaryTable$Total))
 
 setwd('~/CRCdata')
 
-analysisPostfix <- 'WThighfiltered'
+analysisPostfix <- 'WTallfilteredStrong'
 
 mutRatiosBatch = list()
 mutRatioTable = data.frame(matrix(vector(), ncol=6))
@@ -31,7 +31,8 @@ for (dir in dirList){
   
   #Filter epTable according to WT or alternative binding prediction
   #epTable <- filterByBAPrediction(dir, epTable)
-  epTable <- filterByWTBinding(dir, epTable, 'high')
+  epTable <- filterByWTBinding(dir, epTable, 'all')
+  epTable <- epTable[epTable$BindLevel=='SB',]
   
   summaryTableMut <- processSummaryOfSampleSet(dir, epTable)
   mutRatioTable <- getMutationRatios(dir, epTable, mutRatioTable)
@@ -49,7 +50,8 @@ random.data$Sample <- random.data$PatIndex
 random.data.filtered <- subset(random.data, BindLevel!='N')
 
 #Filter according to WT or other binding information
-random.data.filtered <- filterRandomByWTBinding(random.data.filtered, 'high')
+random.data.filtered <- filterRandomByWTBinding(random.data.filtered, 'a')
+random.data.filtered <- random.data.filtered[random.data.filtered$BindLevel=='SB',]
 
 random.summary <- processSummaryOfRandomSet(random.data, random.data.filtered)
 

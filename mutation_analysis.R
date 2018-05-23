@@ -1,5 +1,5 @@
 
-dir <- 'CRCmseq_Set'
+dir <- 'IBD'
 epTable <- read.table(paste0(dir, '/Neopred_results/Output.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
 names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
@@ -28,57 +28,62 @@ lB <- 0.0
 pdf(paste0(dir,'_',sample,'.pdf'),height=5,width=8)
 par(mfrow=c(1,2))
 for (i in tumorColumns){
-  allVafs <- computeVaf(exonic, i)
-  epVafs <- computeVaf(exonic[isEpMutation,], i)
+  allVafs <- computeVafAD(exonic, i)
+  epVafs <- computeVafAD(exonic[isEpMutation,], i)
+  nonepVafs <- computeVafAD(exonic[!isEpMutation,], i)
   
   allVafsF <- allVafs[(allVafs>lB) & (allVafs< uB)]
   epVafsF <- epVafs[(epVafs>lB) & (epVafs < uB)]
+  nonepVafsF <- nonepVafs[(nonepVafs>lB) & (nonepVafs < uB)]
   
-  qqplot(allVafsF, epVafsF, pch=19, xlab='All mutations', ylab='Neoepitope mutations', main='QQplot')
-  plot.ecdf(allVafsF,col='black', ylab='CDF', xlab='VAF')
+  qqplot(nonepVafsF, epVafsF, pch=19, xlab='All mutations', ylab='Neoepitope mutations', main='QQplot')
+  plot.ecdf(nonepVafsF,col='black', ylab='CDF', xlab='VAF')
   plot.ecdf(epVafsF,col='grey50', add=T)
   print(sample)
-  print(ks.test(allVafsF, epVafsF))
+  print(ks.test(nonepVafsF, epVafsF, alternative='less'))
 }
 dev.off()
 }
 
 
 #VAF plotting of selected
-sample = 'Set.10.recalled.snv'
+sample = 'Oxford_IBD2.mutectCalls..somatic'
 sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
 exonic <- readExonicFile(sampleFileEx)
 eps <- subsetEpTable(epTableStrong, sample, unique=T)
 
 isEpMutation <- (exonic$LineID %in% eps$LineID)
 
-uB<-0.65
-lB<-0.0
+uB<-0.7
+lB<-0.025
 
-i=22+2
-allVafs <- computeVaf(exonic, i)
-epVafs <- computeVaf(exonic[isEpMutation,], i)
+i=22+0
+allVafs <- computeVafAD(exonic, i)
+epVafs <- computeVafAD(exonic[isEpMutation,], i)
+nonepVafs <- computeVafAD(exonic[!isEpMutation,], i)
 allVafsF <- allVafs[(allVafs>lB) & (allVafs< uB)]
 epVafsF <- epVafs[(epVafs>lB) & (epVafs < uB)]
+nonepVafsF <- nonepVafs[(nonepVafs>lB) & (nonepVafs < uB)]
 vafDF <- data.frame('vaf'=allVafsF, 'type'='All mutations')
 epDF <- data.frame('vaf'=epVafsF, 'type'='Neo-epitope mutations')
-DF <- rbind(vafDF, epDF)
+nonepDF <- data.frame('vaf'=nonepVafsF, 'type'='Non neo-epitope mutations')
+DF <- rbind(nonepDF, epDF)
 
 mycols = c('#d0cc9e','#4165d1', '#e13512')
 
 
-ggplot(vafDF, aes(x=vaf, y=..scaled..)) + geom_density(fill='grey30',alpha=0.4, adjust=0.8) +
+ggplot(nonepDF, aes(x=vaf, y=..scaled..)) + geom_density(fill='grey30',alpha=0.4, adjust=0.8) +
   geom_density(data=epDF, aes(x=vaf, y=..scaled..), alpha=0.4, fill='red', adjust=1)
 
-p1 = ggplot(DF, aes(x=vaf, y=..scaled.., fill = type)) + geom_density(alpha=0.5, adjust=1) +
-  scale_fill_manual(values=mycols)
-
-pdf('~/Dropbox/Neoepitopes/Prelim_vaf_S10:R2.pdf', width=8, height=5)
-pl <- p1+scale_x_continuous(limits=c(0.01, 0.7)) + theme_bw() +
-  theme(text = element_text(size=16 ,family='sans'), legend.position = c(0.8, 0.7), legend.background = element_rect(colour='black')) +
-  labs(x='Variant allele frequency', y='Frequency') + guides(fill=guide_legend(title=NULL))
-print(pl)
-dev.off()
+# p1 = ggplot(DF, aes(x=vaf, y=..scaled.., fill = type)) + geom_density(alpha=0.5, adjust=1) +
+#   scale_fill_manual(values=mycols)
+# 
+# pdf('~/Dropbox/Neoepitopes/Prelim_vaf_S10:R2.pdf', width=8, height=5)
+# pl <- p1+scale_x_continuous(limits=c(0.01, 0.7)) + theme_bw() +
+#   theme(text = element_text(size=16 ,family='sans'), legend.position = c(0.8, 0.7), legend.background = element_rect(colour='black')) +
+#   labs(x='Variant allele frequency', y='Frequency') + guides(fill=guide_legend(title=NULL))
+# print(pl)
+# dev.off()
 
 
 # Example VAF generation + plotting

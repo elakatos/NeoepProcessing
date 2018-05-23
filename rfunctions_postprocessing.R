@@ -266,6 +266,7 @@ filterByWTBinding <- function(dir, epTable, filt){
   #Generate unique identifiers to match WT and mutated table entries
   WTTable$Ident <- sapply(1:nrow(WTTable), function(i) paste0(WTTable[i,'Identity'], WTTable[i,'peptide_pos'], WTTable[i, 'hla'], nchar(WTTable[i, 'peptide']), substr(WTTable[i, 'PatIndex'], 1, nchar(WTTable[i,'PatIndex'])-7)))
   epTable$Ident <- sapply(1:nrow(epTable), function(i) paste0(epTable[i,'Identity'], epTable[i,'pos'], epTable[i, 'hla'], nchar(epTable[i, 'peptide']),epTable[i, 'Sample']))
+  epTable <- epTable[!duplicated(epTable$Ident),]
   row.names(WTTable) <- WTTable$Ident
   row.names(epTable) <- epTable$Ident
   sharedIdent <- intersect(WTTable$Ident, epTable$Ident) #To ensure that no NAs are introduced, in case no WT information available for some reason
