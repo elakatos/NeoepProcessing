@@ -322,8 +322,8 @@ filterRandomByWTBinding <- function(random.data, filt){
   
 }
 
-processSummaryOfSampleSet <- function(dir, epTable){
-  summaryTable <- read.table(paste0(dir,'/Neopred_results/Output.neoantigens.summarytable.txt'), header=T, row.names=1)
+processSummaryOfSampleSet <- function(dir, epTable, prefix){
+  summaryTable <- read.table(paste0(dir,'/Neopred_results/',prefix,'.neoantigens.summarytable.txt'), header=T, row.names=1)
   summaryTable <- summaryTable[unique(epTable$Sample),]
   
   #Adjust summary table in case neo-epitopes have been filtered

@@ -63,3 +63,38 @@ epTable$ImmuneScore <- epTable$Score
 epTable$Gene.name <- sapply(epTable$Gene, function(x) unlist(strsplit(x, ':'))[1]  )
 exprTable <- getGeneScores(epTable, geneTable)
 exprTableFiltered <- exprTable[rowSums(exprTable > 0)>2,]
+
+
+
+# TCGA analysis -----------------------------------------------------------
+geneTable <- read.table('~/Dropbox/Code/mart_export.txt', sep='\t', header=T)
+names(geneTable) <- c('Gene.ID', 'Start', 'End', 'Chrom', 'Gene.name')
+
+
+dir <- 'TCGA_CRC'
+epTable <- read.table(paste0(dir, '/Neopred_results/Output_BA.neoantigens.txt'), header=F,
+                      sep = '\t',stringsAsFactors = F, fill=T)
+names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-24), 'LineID', 'Chrom', 'Start',
+                    'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
+                    'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score', 'Affinity', 'Rank', 'Cand', 'BindLevel', 'Novelty')
+epNon <- epTable[epTable$Novelty==0,]
+epTable <- epTable[epTable$Novelty!=0,]
+
+#Plot score distribution for a selected sample
+sample <- "TCGA-AG-3881.MSS"
+eps <- subsetEpTable(epTable, sample)
+ggplot(eps, aes(x = Affinity)) + geom_histogram()
+ggplot(eps[eps$Affinity<500,], aes(x = Score)) + geom_histogram()
+
+#excluded ones: hypermutated patients
+excl <- c('TCGA-AA-3977.MSS', 'TCGA-AG-A002')
+epTable <- subset(epTable, !(Sample %in% excl))
+
+#Create immunescore
+epTable$ImmuneScore <- epTable$Affinity
+
+#Assign score to genes
+epTable$Gene.name <- sapply(epTable$Gene, function(x) unlist(strsplit(x, ':'))[1]  )
+exprTable <- getGeneScores(epTable, geneTable)
+exprTableFiltered <- exprTable[rowSums(exprTable > 0)>2,]
+
