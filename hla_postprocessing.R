@@ -1,0 +1,296 @@
+#############################################################################
+# HLA types ---------------------------------------------------------------
+# Gather HLA types from file list
+# Convert to format recognized by netMHCpan and substitute with nearest neighbour to
+# obtain the type netMHCpan would use in its run (e.g. HLA-02:04 == HLA-02:01)
+library(rstudioapi)
+setwd(dirname(getActiveDocumentContext()$path))
+
+hlaConvert <- function(x){
+  if (is.na(x)){
+    y <- NA
+  }
+  else{
+    y <- paste0('HLA-', toupper(substr(x,5,5)),substr(x,7,8),':',substr(x,10,11))
+  }
+  return(y)
+}
+
+nnGrep <- function(x){
+  i <- gregexpr("HLA", x) #find the two HLAs mentioned
+  origHLA <- substr(x, i[[1]][1], i[[1]][1]+9)
+  nn <- substr(x, i[[1]][2], i[[1]][2]+9)
+  j <- regexpr("[0-9]\\.[0-9][0-9][0-9]", x) #match the format of distance
+  dist <- substr(x, j, j+4)
+  return(list(HLA=origHLA, NN=nn, Distance=dist))
+}
+
+#Read in, filter out possibly incorrect predictions and convert to netMHCpan format
+#dir = 'TCGA_CRC'
+#hlas <- read.table(paste0('~/RNAseq/Neoepitopes/',dir,'/hlatypes.txt'), sep='\t', header=T, row.names=1, stringsAsFactors = F)
+hlaFile <- '~/Dropbox/Code/TCGA/hlatypes_total.txt'
+
+hlasOrig <- read.table(hlaFile, sep='\t', header=T, row.names=1, stringsAsFactors = F)
+hlasCorrect <- subset(hlasOrig, !( (HLA.A_1=='hla_a_01_01_01_01') & (is.na(HLA.A_2)) & (HLA.B_1== 'hla_b_07_02_01') & (is.na(HLA.B_2)) & (HLA.C_1=='hla_c_01_02_01') & (is.na(HLA.C_2))  ))
+hlas <- as.data.frame(apply(hlasCorrect, 2,function(r) sapply(r, function(x) hlaConvert(x))) )
+hlaList <- as.vector(as.matrix(hlas))
+
+#Build nearest neighbour table from encountered HLA types
+hlaNN <- data.frame(matrix(vector(), ncol=3))
+names(hlaNN) <- c('HLA', 'NN', 'Distance')
+hlaMaps <- scan(file='hla_mappings.txt', what=character(), sep='\n') #Collection of lines stating nearest neighbours
+for (i in 1:length(hlaMaps)){ hlaNN[i,] <- nnGrep(hlaMaps[i]) }
+hlaNN <- hlaNN[!duplicated(hlaNN$HLA),]
+
+hlaList.mapped <- mapvalues(hlaList, from=hlaNN$HLA, to=hlaNN$NN)
+hlas.mapped <- as.data.frame(sapply(hlas, function(x) mapvalues(x, from=hlaNN$HLA, to=hlaNN$NN)))
+
+#todo <- setdiff(hlaList, hlaNN$HLA)
+#todo <- sapply(todo, function(x) paste0(substr(x, 1, 7),substr(x, 9, 10)))
+
+# Generate HLA file for a particular type ---------------------------------
+
+allele<-'HLA-C12:03'
+nonAllele <- hlas.mapped!=allele
+hlasOut <- hlasCorrect; hlasOut[nonAllele] <- NA #NA all other entries in the hla table
+hlasOut <- hlasOut[rowSums(is.na(hlasOut))<6,]
+#Further filtering: exclude known MSI and hyper-mutated ones
+#nonHyper <- subset(clin.df, (MSI %in% c('MSS', NA)) &(Hypermut %in% c(0, NA)) )
+#hlasOut <- hlasOut[row.names(hlasOut) %in% nonHyper$Patient,]
+outDir <- '~/Dropbox/Code/TCGA/'
+write.table(hlasOut, paste0(outDir,'hlatypes_',sub(':','', allele),'.txt'), sep='\t', quote=F)
+
+
+#####################################################################################
+# LOHHLA analysis ---------------------------------------------------------
+
+# Create a label for filtering depending on the reliability and output of CN measurement
+labelHLAAI <- function(line){
+  if (is.na(line$HLA_type1copyNum_withBAFBin_upper)){return(NaN)}
+  lab <- 'none'
+  if (line$PVal_unique<0.01){lab <- 'AI'}
+  if ((line$HLA_type1copyNum_withBAFBin_lower>1.5) & (line$HLA_type2copyNum_withBAFBin_lower > 1.5 ))
+  { lab <- 'gain'}
+  if ( (lab=='AI') & (line$HLA_type1copyNum_withBAFBin_upper< 0.6) & (line$HLA_type1copyNum_withBAFBin < 0.35 ))
+  { lab <- 'LOH'}
+  if ((lab=='AI') & (line$HLA_type2copyNum_withBAFBin < 0.35) & (line$HLA_type2copyNum_withBAFBin_upper < 0.6 ))
+  { lab <- 'LOH'}
+  if ((lab %in% c('AI','LOH')) & (line$HLA_type1copyNum_withBAFBin_upper<0.5) & (line$HLA_type2copyNum_withBAFBin_upper <0.5 ))
+  { lab <- 'loss'}
+  return(lab)
+}
+
+labelHLArel <- function(line){
+  if (is.na(line$HLA_type1copyNum_withBAFBin_upper)){return(F)}
+  lab <- T
+  confint1 <- line$HLA_type1copyNum_withBAFBin_upper - line$HLA_type1copyNum_withBAFBin_lower
+  confint2 <- line$HLA_type2copyNum_withBAFBin_upper - line$HLA_type2copyNum_withBAFBin_lower
+  if ( ((confint1>1.5) & (line$HLA_type1copyNum_withBAFBin<1.5) & (line$HLA_type1copyNum_withBAFBin>0)) |  ((confint2>1.5) & (line$HLA_type2copyNum_withBAFBin<1.5) & (line$HLA_type2copyNum_withBAFBin>0)) )
+  { lab <- F}
+  if ( (confint1>6) | (confint2>6))
+  {lab <- F}
+  if ( ((abs(line$HLA_type1copyNum_withBAFBin)<0.4) & (line$HLA_type1copyNum_withBAFBin_upper>0.8)) |   ((abs(line$HLA_type2copyNum_withBAFBin)<0.4) & (line$HLA_type2copyNum_withBAFBin_upper>0.8)))
+  {lab <- F}
+  if ( line$numMisMatchSitesCov < 40 )
+  {lab <- F}
+  return(lab)
+}
+
+analyseLohhla <- function(lohhla.master, clin.df){
+  lohhla.signif <- lohhla.master[!is.na(lohhla.master$PVal_unique),]
+  lohhla.signif <- lohhla.signif[lohhla.signif$PVal_unique<0.01,]
+  
+  lohhla.patients <- data.frame(row.names = unique(lohhla.master$region))
+  lohhla.patients$ID <- sapply(row.names(lohhla.patients), function(x) substr(x,1,12))
+  lohhla.patients$AI <- sapply(row.names(lohhla.patients), function(x) x %in% lohhla.signif$region)
+  lohhla.patients$CN <- sapply(row.names(lohhla.patients),
+                               function(x) lohhla.master[lohhla.master$region==x, 'Label'][1]!='NaN')
+  lohhla.patients$LOH <- sapply(row.names(lohhla.patients),
+                                function(x) ('LOH' %in% lohhla.master[lohhla.master$region==x, 'Label']))
+  lohhla.patients$LOSS <- sapply(row.names(lohhla.patients),
+                                 function(x) ('loss' %in% lohhla.master[lohhla.master$region==x, 'Label']))
+  lohhla.patients$NORM <- sapply(row.names(lohhla.patients),
+                                 function(x) sum(lohhla.master[lohhla.master$region==x, 'Label']!='none')==0)
+  lohhla.patients$HIGH <- sapply(row.names(lohhla.patients),
+                                 function(x) ('gain' %in% lohhla.master[lohhla.master$region==x, 'Label']))
+  
+  lohhla.patients$MSI <- clin.df[match(lohhla.patients$ID, clin.df$Patient), 'MSI']=='MSI-H'
+  lohhla.patients$HYP <- clin.df[match(lohhla.patients$ID, clin.df$Patient), 'Hypermut']==1
+  return(list(sig=lohhla.signif, pat=lohhla.patients))
+}
+
+
+dir <- '~/CRCdata/HLA_LOH/CRCmseq/'
+fileList <- list.files(dir, pattern='*.10.DNA.HLAloss*')
+
+lohhla.master <- data.frame(matrix(vector()))
+for (sampleName in fileList){
+  hlapred.failed <- NULL
+  hlapred <- tryCatch(
+    {read.table(paste0(dir,sampleName), sep='\t', header=T,
+                stringsAsFactors = F)},
+    error=function(e){
+      message(paste0('File for ',substr(sampleName,1,12),
+                     ' does not have content, sample is probably completely homozygous.'))
+      return(NA)
+    }
+  )
+  if (is.na(hlapred)){next}
+  hlapred <- hlapred[!duplicated(hlapred[,c('region', 'HLA_A_type1')]),]
+  lohhla.master <- rbind(lohhla.master, hlapred)
+}
+
+
+lohhla.master$QVal <- p.adjust(lohhla.master$PVal_unique, method='fdr')
+lohhla.master$Label <- sapply(1:nrow(lohhla.master), function(i) labelHLAAI(lohhla.master[i,]))
+lohhla.master$Rel <- sapply(1:nrow(lohhla.master), function(i) labelHLArel(lohhla.master[i,]))
+
+anal <- analyseLohhla(lohhla.master, clin.df)
+lohhla.patients <- anal$pat
+
+lohhla.patients.sub <- na.omit(subset(lohhla.patients, CN==T))
+
+t1 <- fisher.test(table(lohhla.patients$MSI, lohhla.patients$AI))
+p1 <- ggplot(na.omit(lohhla.patients), aes(x=MSI, fill=AI)) +
+  geom_bar(stat='count', position='fill') + scale_fill_manual(values=c('skyblue4', 'firebrick3')) +
+  scale_y_continuous(labels=percent_format()) +
+  labs(title=paste0('Fisher exact test p-value: ',round(t1$p.value,5)), x='MSI high', y='')
+t2 <- fisher.test(table(lohhla.patients.sub$MSI, lohhla.patients.sub$LOH))
+p2 <- ggplot(na.omit(lohhla.patients.sub), aes(x=MSI, fill=LOH)) +
+  geom_bar(stat='count', position='fill') + scale_fill_manual(values=c('skyblue4', 'firebrick3')) +
+  scale_y_continuous(labels=percent_format()) +
+  labs(title=paste0('Fisher exact test p-value: ',round(t2$p.value,5)), x='MSI high', y='')
+t3 <- fisher.test(table(lohhla.patients.sub$MSI, lohhla.patients.sub$LOSS))
+p3 <- ggplot(na.omit(lohhla.patients.sub), aes(x=MSI, fill=LOSS)) +
+  geom_bar(stat='count', position='fill') + scale_fill_manual(values=c('skyblue4', 'firebrick3')) +
+  scale_y_continuous(labels=percent_format()) +
+  labs(title=paste0('Fisher exact test p-value: ',round(t3$p.value,5)), x='MSI high', y='')
+
+
+pdf('~/Dropbox/Code/TCGA/Figures/MSI_comp_all_Filtered.pdf', width=12, height=5)
+grid.arrange(p1, p2, p3, nrow=1)
+dev.off()
+
+# Filtered version: filter on the master table level
+
+lohhla.master.filt <- subset(lohhla.master, Rel==T)
+anal <- analyseLohhla(lohhla.master.filt, clin.df)
+lohhla.patients <- anal$pat
+
+lohhla.patients.sub <- na.omit(subset(lohhla.patients, CN==T))
+
+
+
+# Heterogeneity of loci ---------------------------------------------------
+
+numAlleles <- table(lohhla.master$region)
+pnAlleles <- ggplot(melt(table(numAlleles)),aes(x=numAlleles, y=value, fill=numAlleles)) + geom_bar(stat='identity') +
+  labs(y='Number of patients', x='Number of heterozygous HLA loci')
+
+
+divAlleles <- sapply(1:length(numAlleles),
+                     function(x) (length(unique(lohhla.master[lohhla.master$region==(names(numAlleles)[x]),'Label']))-1)/numAlleles[x] )
+divAlleles[divAlleles>1/3] <- 1; divAlleles[divAlleles==1/3]<-0.5
+pdAlleles <- ggplot(melt(table(divAlleles)),aes(x=divAlleles, y=value, fill=divAlleles)) + geom_bar(stat='identity') +
+  labs(y='Number of patients', x='Diversity of copy number of ABC loci')
+
+divAlleles.sub <- divAlleles[row.names(lohhla.patients[lohhla.patients$LOH,])]
+pdAllelesLOH <- ggplot(melt(table(divAlleles.sub)),aes(x=divAlleles.sub, y=value, fill=divAlleles.sub)) + geom_bar(stat='identity') +
+  labs(y='Number of patients', x='Diversity of copy number of ABC loci in patients with LOH')
+
+pdf('~/Dropbox/Code/TCGA/Figures/HLA_div_LOH.pdf', width=7, height=5)
+print(pnAlleles)
+print(pdAlleles)
+print(pdAllelesLOH)
+dev.off()
+
+# Anywhere having AI on A & B but not C?
+numAlleles.3 <- names(numAlleles[numAlleles==3])
+
+alleleDF <- data.frame(row.names=numAlleles.3)
+
+for (regionName in numAlleles.3){
+  x <- lohhla.master[lohhla.master$region==regionName,c('KeptAllele','PVal_unique')]
+  if (sum(is.na(x$KeptAllele))>0){next}
+  alleleDF[regionName,'pA'] <- subset(x, startsWith(KeptAllele, 'hla_a'))$PVal_unique < 0.01
+  alleleDF[regionName,'pB'] <- subset(x, startsWith(KeptAllele, 'hla_b'))$PVal_unique < 0.01
+  alleleDF[regionName,'pC'] <- subset(x, startsWith(KeptAllele, 'hla_c'))$PVal_unique < 0.01
+}
+alleleDF <- na.omit(alleleDF)
+
+dim(subset(alleleDF, pA & pB & pC))
+dim(subset(alleleDF, !pA & !pB & pC))
+
+
+
+# HLA ggplot heatmap ---------------------------------------------------------
+
+# Get information for all alleles : generate melted format already
+lohhla.df <- data.frame('Region'=character(), 'Allele' = character(), 'CopyNumber'=numeric(), 'p.value'=numeric(),stringsAsFactors = F)
+
+for (i in 1:nrow(lohhla.master)){
+  x <- lohhla.master[i,]
+r <- substr(x$region,1,nchar(x$region)-6)
+allele <- paste0('HLA-',toupper(substr(x$HLA_A_type1,5,5)))
+p <- x$PVal_unique
+val <- ifelse(x$PVal_unique<0.01, min(x$HLA_type1copyNum_withBAFBin, x$HLA_type2copyNum_withBAFBin), NA)
+lohhla.df[i,] <- c(r, allele, val, p)
+}
+lohhla.df$CopyNumber <- as.numeric(lohhla.df$CopyNumber)
+lohhla.df$p.value <- as.numeric(lohhla.df$p.value)
+lohhla.df <- lohhla.df[order(lohhla.df$Region),]
+
+pLOH <- ggplot(lohhla.df, aes(x=Allele, y=Region, fill=CopyNumber)) + geom_tile() +
+  scale_fill_gradientn(colours=c('red4', 'brown3', 'mistyrose2', 'bisque', 'cornsilk3'), limits=c(-0.7, 2), na.value='grey70') +
+  theme_bw()
+pP <- ggplot(lohhla.df, aes(x=Allele, y=Region, fill=log(log(1/p.value)))) + geom_tile() +
+  scale_fill_gradientn(colours=c('lightyellow2', 'lightyellow2', 'brown3', 'red4'), values=c(0, 0.7,0.75, 1), limits=c(-4.6, 3.3), na.value='grey70')
+
+pdf('~/CRCdata/HLA_LOH/CRCmseq/LOHHLA_heatmap_all.pdf', height=15, width=5)
+print(pLOH)
+dev.off()
+
+
+######################################################################################
+# Gene expression ---------------------------------------------------------
+
+
+# Cytolytic activity ------------------------------------------------------
+
+gzma <- 'ENSG00000145649'
+prf <- 'ENSG00000180644'
+pdl <- 'ENSG00000120217'
+exprcyt <- tcga.all.tpm[c(gzma, prf),]
+cyts <- apply(exprcyt, 2, function(x) sqrt(x[1]*x[2]))
+#ggplot(data.frame(value=cyts), aes(x=value)) + geom_density()
+
+exprpdl <- as.data.frame(tcga.all.tpm[pdl,,drop=F])
+
+lohhla.patients$CYT <- cyts[match(gsub('-','.',lohhla.patients$ID), names(cyts))]
+ggplot(na.omit(lohhla.patients), aes(x=MSI, y=CYT, fill=MSI)) + geom_violin() +
+  scale_y_continuous(trans='log10') + stat_compare_means()
+
+lohhla.patients.mss <- subset(lohhla.patients, HYP==F)
+lohhla.patients.mss.norm <- subset(lohhla.patients, (HYP==F) & (HIGH==T | LOH==T)   )
+ggplot(na.omit(lohhla.patients.mss.norm), aes(x=HIGH, y=CYT, fill=HIGH)) + geom_violin() +
+  scale_y_continuous(trans='log10') + stat_compare_means()
+
+#lohhla.patients$PD <- exprpdl[match(gsub('-','.',lohhla.patients$ID), names(exprpdl))]
+
+
+
+
+# Purity in CRC from Pierre -----------------------------------------------
+
+dir <- '~/Desktop/tmp/'
+fileList <- list.files(dir, pattern='*.stats-cna-baf*')
+
+mseqPur <- data.frame(matrix(vector(), ncol=4))
+for(sample in fileList){
+tp <- read.table(paste0(dir,sample), sep=',', stringsAsFactors = F)
+mseqPur <- rbind(mseqPur, tp[,c(3,6,4,5)])
+}
+mseqPur$V4 <- sapply(mseqPur$V4, function(x) substr(strsplit(x, ',')[[1]][1], 2, nchar(strsplit(x, ',')[[1]][1])))
+row.names(mseqPur) <- mseqPur$V3; mseqPur <- mseqPur[,c(2,3,4)]
+names(mseqPur) <- c('Ploidy', 'tumorPurity', 'tumorPloidy')
+write.table(mseqPur, file='~/Desktop/tmp/solutions2.txt', sep='\t', quote=F)

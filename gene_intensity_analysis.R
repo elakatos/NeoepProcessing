@@ -72,11 +72,11 @@ names(geneTable) <- c('Gene.ID', 'Start', 'End', 'Chrom', 'Gene.name')
 
 
 dir <- 'TCGA_CRC'
-epTable <- read.table(paste0(dir, '/Neopred_results/Output_BA.neoantigens.txt'), header=F,
+epTable <- read.table(paste0(dir, '/Neopred_results/HLA-A0201.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
-names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-24), 'LineID', 'Chrom', 'Start',
+names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
-                    'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score', 'Affinity', 'Rank', 'Cand', 'BindLevel', 'Novelty')
+                    'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score', 'Affinity', 'Rank', 'Cand', 'BindLevel')#'Novelty')
 epNon <- epTable[epTable$Novelty==0,]
 epTable <- epTable[epTable$Novelty!=0,]
 
@@ -84,7 +84,7 @@ epTable <- epTable[epTable$Novelty!=0,]
 sample <- "TCGA-AG-3881.MSS"
 eps <- subsetEpTable(epTable, sample)
 ggplot(eps, aes(x = Affinity)) + geom_histogram()
-ggplot(eps[eps$Affinity<500,], aes(x = Score)) + geom_histogram()
+ggplot(eps[eps$Affinity<500,], aes(x = Affinity)) + geom_histogram()
 
 #excluded ones: hypermutated patients
 excl <- c('TCGA-AA-3977.MSS', 'TCGA-AG-A002')
