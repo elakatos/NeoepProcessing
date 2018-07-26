@@ -111,22 +111,58 @@ dev.off()
 # TCGA sample -------------------------------------------------------------
 
 dir = 'TCGA_CRC'
-prefix='Output_BA'
+prefix='Total'
 #pdf(paste0(dir, '_summary.pdf'), height = 5, width=8)
 epTable <- read.table(paste0(dir, '/Neopred_results/',prefix,'.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
-names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-24), 'LineID', 'Chrom', 'Start',
+names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
-                    'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score','Affinity', 'Rank', 'Cand', 'BindLevel', 'Novelty')
-epNon <- epTable[epTable$Novelty==0,]
-epTable <- epTable[epTable$Novelty!=0,]
-epTable <- epTable[epTable$Affinity<500,]
+                    'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score','Affinity', 'Rank', 'Cand', 'BindLevel')
+#epNon <- epTable[epTable$Novelty==0,]
+#epTable <- epTable[epTable$Novelty!=0,]
+#epTable <- epTable[epTable$Affinity<500,]
+epTable <- epTable[epTable$BindLevel=='SB',]
 
 summaryTableMut <- processSummaryOfSampleSet(dir, epTable, prefix)
 summaryTableMut$MutRatio <- summaryTableMut$Total/summaryTableMut$Total_MUT
-summaryTableMut$MSI <- sapply(row.names(summaryTableMut), function(x) substr(x, 14,16))
+summaryTableMut <- summaryTableMut[order(summaryTableMut$MutRatio),]
 
-ggplot(summaryTableMut, aes(x=Total_MUT, y=MutRatio, colour=MSI)) + geom_point()
+summaryTableMut$MSI <- clin.df[match(row.names(summaryTableMut), clin.df$Patient), 'MSI']
+summaryTableMut$MSI[summaryTableMut$MSI=='MSS'] <- 'MSI-L'
+summaryTableMut$Hyp <- clin.df[match(row.names(summaryTableMut), clin.df$Patient), 'Hypermut']
+summaryTableMut$B2M <- clin.df[match(row.names(summaryTableMut), clin.df$Patient), 'B2M']>0
+summaryTableMut$VS <- clin.df[match(row.names(summaryTableMut), clin.df$Patient), 'VS']
+summaryTableMut$Age <- clin.df[match(row.names(summaryTableMut), clin.df$Patient), 'Age']
+summaryTableMut$Race <- clin.df[match(row.names(summaryTableMut), clin.df$Patient), 'Race']
+#summaryTableMut$MSI <- clin.df.verified[match(row.names(summaryTableMut), clin.df.verified$Patient), 'MSI']
+#summaryTableMut$Hyp <- clin.df.verified[match(row.names(summaryTableMut), clin.df.verified$Patient), 'Hypermut']
+
+# Compare neoep-mutation ratio in MSI and MSS
+summaryTableMut.sub <- subset(summaryTableMut, MSI != 'POLE')
+summaryTableMut.sub <- subset(summaryTableMut, Total_MUT > 20)
+ggplot(summaryTableMut.sub, aes(x=Total_MUT, y=MutRatio, colour=Hyp)) + geom_point() + scale_x_continuous(trans='log1p')
+ggplot(summaryTableMut.sub, aes(x=MSI, y=MutRatio, fill=as.factor(MSI))) + geom_violin() +
+stat_compare_means(comparisons = list(c('MSI-H', 'MSI-L')))
+ggplot(summaryTableMut.sub, aes(x=Hyp, y=MutRatio, fill=as.factor(Hyp))) + geom_violin() +
+  stat_compare_means(comparisons = list(c(1,0)))
+ggplot(summaryTableMut.sub, aes(x=B2M, y=MutRatio, fill=B2M)) + geom_violin() +
+  stat_compare_means(comparisons = list(c(FALSE,TRUE)))
+ggplot(summaryTableMut.sub, aes(x=VS, y=MutRatio, fill=as.factor(VS))) + geom_violin() +
+  stat_compare_means(comparisons = list(c('alive','dead')))
+
+summaryTableMut.sub$Age <- cut(summaryTableMut.sub$Age, c(min(summaryTableMut.sub$Age, na.rm=T),
+                                                          median(summaryTableMut.sub$Age, na.rm=T),
+                                                          max(summaryTableMut.sub$Age, na.rm=T)))
+summaryTableMut.sub$Age <- cut(summaryTableMut.sub$Age, quantile(summaryTableMut.sub$Age, na.rm=T))
+ggplot(summaryTableMut.sub, aes(x=Age, y=MutRatio, fill=as.factor(Age))) + geom_violin() +
+  stat_compare_means(comparisons = list(c('(31.2,57.7]','(75.6,90.1]')))
+summaryTableMut.sub$Race[summaryTableMut.sub$Race=='not reported'] <- NA
+ggplot(summaryTableMut.sub, aes(x=Race, y=MutRatio, fill=Race)) + geom_violin() +
+  stat_compare_means(comparisons = list(c('black or african american','asian')))
+
+#Lowest/highest mutation ratios?
+
+
 
 #Check if there are shared epitopes/mutations
 epTable$Gene.name <- sapply(epTable$Gene, function(x) unlist(strsplit(x, ':'))[1]  )
@@ -139,56 +175,3 @@ mutation.table.sorted <- mutation.table[order(-mutation.table)]
 
 epitope.table <- table(epTable.pep.dedup$peptide)
 epitope.table.sorted <- epitope.table[order(-epitope.table)]
-
-# HLA types ---------------------------------------------------------------
-
-hlaConvert <- function(x){
-  if (is.na(x)){
-    y <- NA
-  }
-  else{
-    y <- paste0('HLA-', toupper(substr(x,5,5)),substr(x,7,8),':',substr(x,10,11))
-  }
-  return(y)
-}
-
-nnGrep <- function(x){
-  i <- gregexpr("HLA", x) #find the two HLAs mentioned
-  origHLA <- substr(x, i[[1]][1], i[[1]][1]+9)
-  nn <- substr(x, i[[1]][2], i[[1]][2]+9)
-  j <- regexpr("[0-9]\\.[0-9][0-9][0-9]", x) #match the format of distance
-  dist <- substr(x, j, j+4)
-  return(list(HLA=origHLA, NN=nn, Distance=dist))
-}
-
-#Read in, filter out possibly incorrect predictions and convert to netMHCpan format
-#dir = 'TCGA_CRC'
-#hlas <- read.table(paste0('~/RNAseq/Neoepitopes/',dir,'/hlatypes.txt'), sep='\t', header=T, row.names=1, stringsAsFactors = F)
-hlasOrig <- read.table('~/Dropbox/Code/TCGA/hlatypes_tcga_1.txt', sep='\t', header=T, row.names=1, stringsAsFactors = F)
-hlasCorrect <- subset(hlasOrig, !( (HLA.A_1=='hla_a_01_01_01_01') & (is.na(HLA.A_2)) & (HLA.B_1== 'hla_b_07_02_01') & (is.na(HLA.B_2)) & (HLA.C_1=='hla_c_01_02_01') & (is.na(HLA.C_2))  ))
-hlas <- as.data.frame(apply(hlasCorrect, 2,function(r) sapply(r, function(x) hlaConvert(x))) )
-hlaList <- as.vector(as.matrix(hlas))
-
-#Build nearest neighbour table from encountered HLA types
-hlaNN <- data.frame(matrix(vector(), ncol=3))
-names(hlaNN) <- c('HLA', 'NN', 'Distance')
-hlaMaps <- scan(file='~/Dropbox/Code/TCGA/hla_mappings.txt', what=character(), sep='\n') #Collection of lines stating nearest neighbours
-for (i in 1:length(hlaMaps)){ hlaNN[i,] <- nnGrep(hlaMaps[i]) }
-hlaNN <- hlaNN[!duplicated(hlaNN$HLA),]
-
-hlaList.mapped <- mapvalues(hlaList, from=hlaNN$HLA, to=hlaNN$NN)
-hlas.mapped <- as.data.frame(sapply(hlas, function(x) mapvalues(x, from=hlaNN$HLA, to=hlaNN$NN)))
-
-#todo <- setdiff(hlaList, hlaNN$HLA)
-#todo <- sapply(todo, function(x) paste0(substr(x, 1, 7),substr(x, 9, 10)))
-
-#Get patients who have a particular HLAtype and NA all other hla
-allele<-'HLA-A02:01'
-nonAllele <- hlas.mapped!=allele
-
-hlasOut <- hlasCorrect; hlasOut[nonAllele] <- NA
-hlasOut <- hlasOut[rowSums(is.na(hlasOut))<6,]
-#Further filtering: exclude known MSI and hyper-mutated ones
-nonHyper <- subset(clin.df, (MSI %in% c('MSS', NA)) &(Hypermut %in% c(0, NA)) )
-hlasOut <- hlasOut[row.names(hlasOut) %in% nonHyper$Patient,]
-write.table(hlasOut, paste0('~/Dropbox/Code/TCGA/hlatypes_',sub(':','', allele),'.txt'), sep='\t', quote=F)

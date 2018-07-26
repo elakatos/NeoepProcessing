@@ -339,25 +339,25 @@ processSummaryOfSampleSet <- function(dir, epTable, prefix){
     scale_y_continuous(labels = percent_format()) +
     scale_fill_manual(values=rev(colReds)) + labs(x = "Tumour", y = "", fill="Clonality") + ggtitle("Clonality of neoepitopes") +
     facet_grid(. ~ Var1)
-  print(pc)
+  #print(pc)
   
   #Plot the average number of epitopes (peptides) produced by mutations that lead to epitopes
   eps <- melt(as.matrix(summaryTable[, 'Total', drop=F]/summaryTableMut[,'Total',drop=F]))
   pe <- ggplot(data=eps, aes(x=Var1, y=value)) + geom_bar(stat='identity', fill=colBlues[3], color='black') +
     labs(x = "Tumour", y = "") + ggtitle("Average neo-epitopes per neo-ep mutation") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
-  print(pe)
+  #print(pe)
   
   #Plot the number of mutations giving rise to neo-epitopes over all missense (exonic, aa-changing) mutations
   summaryTableMut$Total_MUT <- sapply(row.names(summaryTableMut), function(x) getTotalMutFromFasta(dir, x))
   pem <- ggplot(data=summaryTableMut, aes(x=row.names(summaryTableMut), y=Total/Total_MUT)) + geom_bar(stat='identity', fill=colBlues[3], color='black') +
     scale_y_continuous(labels = percent_format()) + theme(axis.text.x = element_text(angle = 90, hjust = 1))+
     labs(x = "Tumour", y = "") + ggtitle("Percentage of missense mutations producing at least one neo-epitope")
-  print(pem)
+  #print(pem)
   
   #Is there a connection between the percentage of clonal mutations and percentage of neo-ep mutations?
   pemc <- ggplot(data=summaryTableMut, aes(x=Clonal/Total, y=Total/Total_MUT)) + geom_point(size=3) +
     geom_smooth(method='lm', color=colBlues[3]) + labs(x="Percentage of mutations clonal", y="Percentage of mutation associated with neo-eps")
-  print(pemc)
+  #print(pemc)
   
   return(summaryTableMut)
 }

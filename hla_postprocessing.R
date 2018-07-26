@@ -80,7 +80,7 @@ labelHLAAI <- function(line){
   return(lab)
 }
 
-labelHLArel <- function(line){
+labelHLArel <- function(line, mincov){
   if (is.na(line$HLA_type1copyNum_withBAFBin_upper)){return(F)}
   lab <- T
   confint1 <- line$HLA_type1copyNum_withBAFBin_upper - line$HLA_type1copyNum_withBAFBin_lower
@@ -91,7 +91,7 @@ labelHLArel <- function(line){
   {lab <- F}
   if ( ((abs(line$HLA_type1copyNum_withBAFBin)<0.4) & (line$HLA_type1copyNum_withBAFBin_upper>0.8)) |   ((abs(line$HLA_type2copyNum_withBAFBin)<0.4) & (line$HLA_type2copyNum_withBAFBin_upper>0.8)))
   {lab <- F}
-  if ( line$numMisMatchSitesCov < 40 )
+  if ( line$numMisMatchSitesCov < mincov )
   {lab <- F}
   return(lab)
 }
@@ -120,7 +120,7 @@ analyseLohhla <- function(lohhla.master, clin.df){
 }
 
 
-dir <- '~/CRCdata/HLA_LOH/CRCmseq/'
+dir <- '~/CRCdata/HLA_LOH/TCGA/'
 fileList <- list.files(dir, pattern='*.10.DNA.HLAloss*')
 
 lohhla.master <- data.frame(matrix(vector()))
@@ -143,11 +143,18 @@ for (sampleName in fileList){
 
 lohhla.master$QVal <- p.adjust(lohhla.master$PVal_unique, method='fdr')
 lohhla.master$Label <- sapply(1:nrow(lohhla.master), function(i) labelHLAAI(lohhla.master[i,]))
-lohhla.master$Rel <- sapply(1:nrow(lohhla.master), function(i) labelHLArel(lohhla.master[i,]))
+lohhla.master$Rel <- sapply(1:nrow(lohhla.master), function(i) labelHLArel(lohhla.master[i,], 25))
 
-anal <- analyseLohhla(lohhla.master, clin.df)
+# Filtered version: filter on the master table level
+
+lohhla.master.filt <- subset(lohhla.master, Rel==T)
+anal <- analyseLohhla(lohhla.master.filt, clin.df)
 lohhla.patients <- anal$pat
 
+lohhla.patients$B2M <- clin.df[match(lohhla.patients$ID, clin.df$Patient), 'B2M']>0
+lohhla.patients$MUT <- sapply(lohhla.patients$ID, function(x) x %in% muthla.signif$individual)
+
+lohhla.patients <- subset(lohhla.patients, !(HYP & !MSI)) #Filter out hypermutated MSS cases (e.g. POLE)
 lohhla.patients.sub <- na.omit(subset(lohhla.patients, CN==T))
 
 t1 <- fisher.test(table(lohhla.patients$MSI, lohhla.patients$AI))
@@ -167,18 +174,83 @@ p3 <- ggplot(na.omit(lohhla.patients.sub), aes(x=MSI, fill=LOSS)) +
   labs(title=paste0('Fisher exact test p-value: ',round(t3$p.value,5)), x='MSI high', y='')
 
 
-pdf('~/Dropbox/Code/TCGA/Figures/MSI_comp_all_Filtered.pdf', width=12, height=5)
-grid.arrange(p1, p2, p3, nrow=1)
-dev.off()
+#pdf('~/Dropbox/Code/TCGA/Figures/MSI_comp_all_Filtered.pdf', width=12, height=5)
+#grid.arrange(p1, p2, p3, nrow=1)
+#dev.off()
 
-# Filtered version: filter on the master table level
 
-lohhla.master.filt <- subset(lohhla.master, Rel==T)
-anal <- analyseLohhla(lohhla.master.filt, clin.df)
-lohhla.patients <- anal$pat
+t4 <- fisher.test(table(lohhla.patients$MSI, lohhla.patients$B2M))
+p4 <- ggplot(na.omit(lohhla.patients), aes(x=MSI, fill=B2M)) +
+  geom_bar(stat='count', position='fill') + scale_fill_manual(values=c('skyblue4', 'firebrick3')) +
+  scale_y_continuous(labels=percent_format()) +
+  labs(title=paste0('Fisher exact test p-value: ',round(t4$p.value,5)), x='MSI high', y='')
 
-lohhla.patients.sub <- na.omit(subset(lohhla.patients, CN==T))
+t5 <- fisher.test(table(lohhla.patients$MSI, lohhla.patients$MUT))
+p5 <- ggplot(na.omit(lohhla.patients), aes(x=MSI, fill=MUT)) +
+  geom_bar(stat='count', position='fill') + scale_fill_manual(values=c('skyblue4', 'firebrick3')) +
+  scale_y_continuous(labels=percent_format()) +
+  labs(title=paste0('Fisher exact test p-value: ',round(t4$p.value,5)), x='MSI high', y='')
 
+#pdf('~/Dropbox/Code/TCGA/Figures/MSI_comp_all_Filtered_B2M.pdf', width=12, height=5)
+grid.arrange(p1, p2, p4, nrow=1)
+#dev.off()
+
+t4 <- fisher.test(table(lohhla.patients.sub$LOH, lohhla.patients.sub$B2M))
+p4 <- ggplot(na.omit(lohhla.patients), aes(x=LOH, fill=B2M)) +
+  geom_bar(stat='count', position='fill') + scale_fill_manual(values=c('skyblue4', 'firebrick3')) +
+  scale_y_continuous(labels=percent_format()) +
+  labs(title=paste0('Fisher exact test p-value: ',round(t4$p.value,5)), x='LOH', y='')
+
+
+###########################################################################
+# Alternative escapes -----------------------------------------------------
+
+# HLA mutations -----------------------------------------------------------
+
+#dirList <- paste0('~/CRCdata/HLA_MUT/CRCmseq/Set',1:10,'_unk')
+dirList <- '~/CRCdata/HLA_MUT/TCGA'
+
+muthla.master <- data.frame(matrix(vector()))
+
+correctHeader <- c('individual', 'contig', 'position', 'context', 'ref_allele', 'alt_allele',
+                   'tumor_name', 'normal_name', 'score', 'dbsnp_site', 'covered', 'power', 'tumor_power',
+                   'normal_power', 'normal_power_nsp', 'normal_power_wsp', 'total_reads', 'map_Q0_reads',
+                   'init_t_lod', 't_lod_fstar', 't_lod_fstar_forward', 't_lod_fstar_reverse', 'tumor_f',
+                   'contaminant_fraction', 'contaminant_lod', 't_q20_count', 't_ref_count', 't_alt_count',
+                   't_ref_sum', 't_alt_sum', 't_ref_max_mapq', 't_alt_max_mapq', 't_ins_count', 't_del_count',
+                   'normal_best_gt', 'init_n_lod', 'normal_f', 'n_q20_count', 'n_ref_count', 'n_alt_count',
+                   'n_ref_sum', 'n_alt_sum', 'power_to_detect_positive_strand_artifact',
+                   'power_to_detect_negative_strand_artifact', 'strand_bias_counts', 'tumor_alt_fpir_median',
+                   'tumor_alt_fpir_mad', 'tumor_alt_rpir_median', 'tumor_alt_rpir_mad', 'observed_in_normals_count',
+                   'failure_reasons', 'judgement','exon_or_intron', 'exon_number', 'intron_number', 'protein_change')
+
+muthla.master <- data.frame(matrix(vector()))
+
+for (dir in dirList){
+  sampleList <- list.files(dir, pattern='*')
+  for (sample in sampleList){
+    hlaList <- list.files(paste0(dir, '/', sample), pattern='*.mutect.unfiltered.annotated')
+    for (hla in hlaList){
+      muthla <- tryCatch(
+        {read.table(paste0(dir,'/', sample,'/', hla), stringsAsFactors = F, header=F, skip=1, sep='\t')},
+        error=function(e){return(NA)}
+      )
+      if (!is.na(muthla)){
+        names(muthla) <- correctHeader
+        muthla.master <- rbind(muthla.master, muthla)
+      }
+    }
+    hlaList2 <- list.files(paste0(dir, '/', sample), pattern='*.strelka_indels.unfiltered.annotated')
+    for (hla in hlaList2){
+    indels.tmp <- read.table(paste0(dir, '/', sample, '/', hla), stringsAsFactors = F, header=T, sep='\t')
+    if(nrow(indels.tmp)>0){print('Woohoo')}
+    }
+  }
+}
+
+muthla.signif <- subset(muthla.master, protein_change!=-1)
+muthla.signif$nonsyn <- sapply(muthla.signif$protein_change, function(x) substr(x,3,3) != substr(x, nchar(x), nchar(x)))
+muthla.signif <- subset(muthla.signif, nonsyn)
 
 
 # Heterogeneity of loci ---------------------------------------------------
@@ -230,7 +302,8 @@ lohhla.df <- data.frame('Region'=character(), 'Allele' = character(), 'CopyNumbe
 
 for (i in 1:nrow(lohhla.master)){
   x <- lohhla.master[i,]
-r <- substr(x$region,1,nchar(x$region)-6)
+#r <- substr(x$region,1,nchar(x$region)-6)
+  r <- x$region
 allele <- paste0('HLA-',toupper(substr(x$HLA_A_type1,5,5)))
 p <- x$PVal_unique
 val <- ifelse(x$PVal_unique<0.01, min(x$HLA_type1copyNum_withBAFBin, x$HLA_type2copyNum_withBAFBin), NA)
@@ -246,7 +319,7 @@ pLOH <- ggplot(lohhla.df, aes(x=Allele, y=Region, fill=CopyNumber)) + geom_tile(
 pP <- ggplot(lohhla.df, aes(x=Allele, y=Region, fill=log(log(1/p.value)))) + geom_tile() +
   scale_fill_gradientn(colours=c('lightyellow2', 'lightyellow2', 'brown3', 'red4'), values=c(0, 0.7,0.75, 1), limits=c(-4.6, 3.3), na.value='grey70')
 
-pdf('~/CRCdata/HLA_LOH/CRCmseq/LOHHLA_heatmap_all.pdf', height=15, width=5)
+pdf('~/CRCdata/HLA_LOH/CRCmseq/LOHHLA_heatmap_Set6.pdf', height=7, width=5)
 print(pLOH)
 dev.off()
 
@@ -278,8 +351,6 @@ ggplot(na.omit(lohhla.patients.mss.norm), aes(x=HIGH, y=CYT, fill=HIGH)) + geom_
 #lohhla.patients$PD <- exprpdl[match(gsub('-','.',lohhla.patients$ID), names(exprpdl))]
 
 
-
-
 # Purity in CRC from Pierre -----------------------------------------------
 
 dir <- '~/Desktop/tmp/'
@@ -294,3 +365,11 @@ mseqPur$V4 <- sapply(mseqPur$V4, function(x) substr(strsplit(x, ',')[[1]][1], 2,
 row.names(mseqPur) <- mseqPur$V3; mseqPur <- mseqPur[,c(2,3,4)]
 names(mseqPur) <- c('Ploidy', 'tumorPurity', 'tumorPloidy')
 write.table(mseqPur, file='~/Desktop/tmp/solutions2.txt', sep='\t', quote=F)
+
+###########################################################################
+# Individual cases --------------------------------------------------------
+
+case <- 'TCGA-CK-4951'
+lohhla.master[lohhla.master$region==paste0(case,'.tumour'),]
+clin.df[clin.df$Patient==case,]
+if(case %in% muthla.master$individual){print(muthla.master[muthla.master$individual==case,])}
