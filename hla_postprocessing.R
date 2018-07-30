@@ -143,18 +143,18 @@ for (sampleName in fileList){
 
 lohhla.master$QVal <- p.adjust(lohhla.master$PVal_unique, method='fdr')
 lohhla.master$Label <- sapply(1:nrow(lohhla.master), function(i) labelHLAAI(lohhla.master[i,]))
-lohhla.master$Rel <- sapply(1:nrow(lohhla.master), function(i) labelHLArel(lohhla.master[i,], 25))
+lohhla.master$Rel <- sapply(1:nrow(lohhla.master), function(i) labelHLArel(lohhla.master[i,], 30))
 
 # Filtered version: filter on the master table level
 
-lohhla.master.filt <- subset(lohhla.master, Rel==T)
-anal <- analyseLohhla(lohhla.master.filt, clin.df)
+lohhla.master <- subset(lohhla.master, Rel==T)
+anal <- analyseLohhla(lohhla.master, clin.df)
 lohhla.patients <- anal$pat
 
 lohhla.patients$B2M <- clin.df[match(lohhla.patients$ID, clin.df$Patient), 'B2M']>0
 lohhla.patients$MUT <- sapply(lohhla.patients$ID, function(x) x %in% muthla.signif$individual)
 
-lohhla.patients <- subset(lohhla.patients, !(HYP & !MSI)) #Filter out hypermutated MSS cases (e.g. POLE)
+#lohhla.patients <- subset(lohhla.patients, !(HYP & !MSI)) #Filter out hypermutated MSS cases (e.g. POLE)
 lohhla.patients.sub <- na.omit(subset(lohhla.patients, CN==T))
 
 t1 <- fisher.test(table(lohhla.patients$MSI, lohhla.patients$AI))
@@ -191,15 +191,29 @@ p5 <- ggplot(na.omit(lohhla.patients), aes(x=MSI, fill=MUT)) +
   scale_y_continuous(labels=percent_format()) +
   labs(title=paste0('Fisher exact test p-value: ',round(t4$p.value,5)), x='MSI high', y='')
 
-#pdf('~/Dropbox/Code/TCGA/Figures/MSI_comp_all_Filtered_B2M.pdf', width=12, height=5)
-grid.arrange(p1, p2, p4, nrow=1)
-#dev.off()
+pdf('~/Dropbox/Code/TCGA/Figures/MSI_comp_filtered_HLA.pdf', width=15, height=5)
+grid.arrange(p1, p2, p4, p5, nrow=1)
+dev.off()
 
-t4 <- fisher.test(table(lohhla.patients.sub$LOH, lohhla.patients.sub$B2M))
-p4 <- ggplot(na.omit(lohhla.patients), aes(x=LOH, fill=B2M)) +
+t4 <- fisher.test(table(lohhla.patients.sub$B2M, lohhla.patients.sub$MUT))
+p4 <- ggplot(na.omit(lohhla.patients), aes(x=B2M, fill=MUT)) +
   geom_bar(stat='count', position='fill') + scale_fill_manual(values=c('skyblue4', 'firebrick3')) +
   scale_y_continuous(labels=percent_format()) +
-  labs(title=paste0('Fisher exact test p-value: ',round(t4$p.value,5)), x='LOH', y='')
+  labs(title=paste0('Fisher exact test p-value: ',round(t4$p.value,5)), x='B2M', y='')
+t3 <- fisher.test(table(lohhla.patients.sub$LOH, lohhla.patients.sub$MUT))
+p3 <- ggplot(na.omit(lohhla.patients), aes(x=LOH, fill=MUT)) +
+  geom_bar(stat='count', position='fill') + scale_fill_manual(values=c('skyblue4', 'firebrick3')) +
+  scale_y_continuous(labels=percent_format()) +
+  labs(title=paste0('Fisher exact test p-value: ',round(t3$p.value,5)), x='LOH', y='')
+t2 <- fisher.test(table(lohhla.patients.sub$LOH, lohhla.patients.sub$B2M))
+p2 <- ggplot(na.omit(lohhla.patients), aes(x=LOH, fill=B2M)) +
+  geom_bar(stat='count', position='fill') + scale_fill_manual(values=c('skyblue4', 'firebrick3')) +
+  scale_y_continuous(labels=percent_format()) +
+  labs(title=paste0('Fisher exact test p-value: ',round(t2$p.value,5)), x='LOH', y='')
+
+pdf('~/Dropbox/Code/TCGA/Figures/MSI_comp_filtered_mutations.pdf', width=11, height=5)
+grid.arrange(p2, p3, p4, nrow=1)
+dev.off()
 
 
 ###########################################################################
@@ -322,6 +336,12 @@ pP <- ggplot(lohhla.df, aes(x=Allele, y=Region, fill=log(log(1/p.value)))) + geo
 pdf('~/CRCdata/HLA_LOH/CRCmseq/LOHHLA_heatmap_Set6.pdf', height=7, width=5)
 print(pLOH)
 dev.off()
+
+
+# HLA modifications heatmap -----------------------------------------------
+
+
+
 
 
 ######################################################################################

@@ -35,9 +35,9 @@ for (dir in dirList){
   #epTable <- filterByWTBinding(dir, epTable, 'all')
   #epTable <- epTable[epTable$BindLevel=='SB',]
   
-  summaryTableMut <- processSummaryOfSampleSet(dir, epTable, prefix)
+  summaryTable <- processSummaryOfSampleSet(dir, epTable, prefix)
   mutRatioTable <- getMutationRatios(dir, epTable, mutRatioTable)
-  mutRatiosBatch[dir] <- list(summaryTableMut$Total/summaryTableMut$Total_MUT)
+  mutRatiosBatch[dir] <- list(summaryTable$Total/summaryTable$Total_MUT)
   dev.off()
 }
 
@@ -110,7 +110,7 @@ dev.off()
 
 # TCGA sample -------------------------------------------------------------
 
-dir = 'TCGA_CRC'
+dir = '../TCGA_CRC'
 prefix='Total'
 #pdf(paste0(dir, '_summary.pdf'), height = 5, width=8)
 epTable <- read.table(paste0(dir, '/Neopred_results/',prefix,'.neoantigens.txt'), header=F,
@@ -121,44 +121,85 @@ names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom
 #epNon <- epTable[epTable$Novelty==0,]
 #epTable <- epTable[epTable$Novelty!=0,]
 #epTable <- epTable[epTable$Affinity<500,]
-epTable <- epTable[epTable$BindLevel=='SB',]
+#epTable <- epTable[epTable$BindLevel=='SB',]
 
-summaryTableMut <- processSummaryOfSampleSet(dir, epTable, prefix)
-summaryTableMut$MutRatio <- summaryTableMut$Total/summaryTableMut$Total_MUT
-summaryTableMut <- summaryTableMut[order(summaryTableMut$MutRatio),]
+summaryTable <- processSummaryOfSampleSet(dir, epTable, prefix)
 
-summaryTableMut$MSI <- clin.df[match(row.names(summaryTableMut), clin.df$Patient), 'MSI']
-summaryTableMut$MSI[summaryTableMut$MSI=='MSS'] <- 'MSI-L'
-summaryTableMut$Hyp <- clin.df[match(row.names(summaryTableMut), clin.df$Patient), 'Hypermut']
-summaryTableMut$B2M <- clin.df[match(row.names(summaryTableMut), clin.df$Patient), 'B2M']>0
-summaryTableMut$VS <- clin.df[match(row.names(summaryTableMut), clin.df$Patient), 'VS']
-summaryTableMut$Age <- clin.df[match(row.names(summaryTableMut), clin.df$Patient), 'Age']
-summaryTableMut$Race <- clin.df[match(row.names(summaryTableMut), clin.df$Patient), 'Race']
-#summaryTableMut$MSI <- clin.df.verified[match(row.names(summaryTableMut), clin.df.verified$Patient), 'MSI']
-#summaryTableMut$Hyp <- clin.df.verified[match(row.names(summaryTableMut), clin.df.verified$Patient), 'Hypermut']
+summaryTable$MutRatio <- summaryTable$Total/summaryTable$Total_MUT
+summaryTable <- summaryTable[order(summaryTable$MutRatio),]
+
+summaryTable$MSI <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'MSI']
+summaryTable$Hyp <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'Hypermut']
+summaryTable$B2M <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'B2M']>0
+summaryTable$VS <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'VS']
+summaryTable$Age <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'Age']/365
+summaryTable$Race <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'Race']
+summaryTable$Stage <- gsub('[abc]', '', clin.df[match(row.names(summaryTable), clin.df$Patient), 'Stage'])
+summaryTable[summaryTable=='not reported'] <- NA
+
+summaryTable$LOH <- lohhla.patients[match(row.names(summaryTable), lohhla.patients$ID), 'LOH']
+summaryTable$MUT <- lohhla.patients[match(row.names(summaryTable), lohhla.patients$ID), 'MUT']
+#summaryTable$MSI <- clin.df.verified[match(row.names(summaryTable), clin.df.verified$Patient), 'MSI']
+#summaryTable$Hyp <- clin.df.verified[match(row.names(summaryTable), clin.df.verified$Patient), 'Hypermut']
 
 # Compare neoep-mutation ratio in MSI and MSS
-summaryTableMut.sub <- subset(summaryTableMut, MSI != 'POLE')
-summaryTableMut.sub <- subset(summaryTableMut, Total_MUT > 20)
-ggplot(summaryTableMut.sub, aes(x=Total_MUT, y=MutRatio, colour=Hyp)) + geom_point() + scale_x_continuous(trans='log1p')
-ggplot(summaryTableMut.sub, aes(x=MSI, y=MutRatio, fill=as.factor(MSI))) + geom_violin() +
-stat_compare_means(comparisons = list(c('MSI-H', 'MSI-L')))
-ggplot(summaryTableMut.sub, aes(x=Hyp, y=MutRatio, fill=as.factor(Hyp))) + geom_violin() +
-  stat_compare_means(comparisons = list(c(1,0)))
-ggplot(summaryTableMut.sub, aes(x=B2M, y=MutRatio, fill=B2M)) + geom_violin() +
-  stat_compare_means(comparisons = list(c(FALSE,TRUE)))
-ggplot(summaryTableMut.sub, aes(x=VS, y=MutRatio, fill=as.factor(VS))) + geom_violin() +
-  stat_compare_means(comparisons = list(c('alive','dead')))
+summaryTable.sub <- subset(summaryTable, MSI != 'POLE')
+summaryTable.sub <- subset(summaryTable.sub, Total_MUT > 30)
+ylb <- 'RATIO of neo-epitope associated mutations'
 
-summaryTableMut.sub$Age <- cut(summaryTableMut.sub$Age, c(min(summaryTableMut.sub$Age, na.rm=T),
-                                                          median(summaryTableMut.sub$Age, na.rm=T),
-                                                          max(summaryTableMut.sub$Age, na.rm=T)))
-summaryTableMut.sub$Age <- cut(summaryTableMut.sub$Age, quantile(summaryTableMut.sub$Age, na.rm=T))
-ggplot(summaryTableMut.sub, aes(x=Age, y=MutRatio, fill=as.factor(Age))) + geom_violin() +
-  stat_compare_means(comparisons = list(c('(31.2,57.7]','(75.6,90.1]')))
-summaryTableMut.sub$Race[summaryTableMut.sub$Race=='not reported'] <- NA
-ggplot(summaryTableMut.sub, aes(x=Race, y=MutRatio, fill=Race)) + geom_violin() +
-  stat_compare_means(comparisons = list(c('black or african american','asian')))
+summaryTable.sub$MutRatio <- summaryTable.sub$Total #Instead look at the total number of neo-epitope mutations
+ylb <- 'TOTAL neo-epitope associated mutations'
+
+p0 <- ggplot(summaryTable.sub, aes(x=Total_MUT, y=MutRatio, colour=as.factor(Hyp))) + geom_point() + scale_x_continuous(trans='log10') +scale_y_continuous(trans='log10') +
+  stat_cor(label.x.npc = 'centre') + stat_cor(mapping=aes(x=Total_MUT,y=MutRatio,colour=Hyp),label.x.npc='centre', label.y.npc='bottom') +
+  scale_color_manual(values=c(rgb(0.2,0.35,0.45), rgb(0.35,0.55,0.8))) +
+  labs(colour='Hypermutated', x='Total somatic missense mutations', y=ylb)
+p1 <- ggplot(summaryTable.sub, aes(x=MSI, y=MutRatio, fill=as.factor(MSI))) + geom_violin() +
+stat_compare_means(comparisons = list(c('MSI-H', 'MSI-L'))) +
+  guides(fill=F) + labs(y=ylb, title='All non-POLE tumours')
+p2 <- ggplot(summaryTable.sub, aes(x=Hyp, y=MutRatio, fill=as.factor(Hyp))) + geom_violin() +
+  stat_compare_means(comparisons = list(c(1,0))) +
+  guides(fill=F) + labs(y=ylb, x='Hypermutated', title='All non-POLE tumours')
+p3 <- ggplot(summaryTable.sub, aes(x=B2M, y=MutRatio, fill=B2M)) + geom_violin() +
+  stat_compare_means(comparisons = list(c('TRUE','FALSE'))) +
+  guides(fill=F) + labs(y=ylb, x='Mutated in B2M', title='All non-POLE tumours')
+p4 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$MUT),], aes(x=MUT, y=MutRatio, fill=MUT)) + geom_violin() +
+  stat_compare_means(comparisons = list(c('TRUE','FALSE'))) +
+  guides(fill=F) + labs(y=ylb, x='Mutated in HLA', title='All non-POLE tumours')
+p5 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$LOH),], aes(x=LOH, y=MutRatio, fill=as.factor(LOH))) + geom_violin() +
+  stat_compare_means(comparisons = list(c('TRUE','FALSE'))) +
+  guides(fill=F) + labs(y=ylb, x='LOH in HLA', title='All non-POLE tumours')
+p6 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$VS),], aes(x=VS, y=MutRatio, fill=as.factor(VS))) + geom_violin() +
+  stat_compare_means(comparisons = list(c('alive','dead'))) +
+  guides(fill=F) + labs(y=ylb, x='Vital status', title='All non-POLE tumours')
+p7 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$Stage),], aes(x=Stage, y=MutRatio, fill=as.factor(Stage))) + geom_violin() +
+  #stat_compare_means(comparisons = list(c('stge i', 'stge ii'), c('stge ii', 'stge iii'), c('stge iii', 'stge iv'),
+  #                                      c('stge i', 'stge iii'), c('stge ii', 'stge iv'), c('stge i', 'stge iv')))
+  guides(fill=F) + labs(y=ylb, title='All non-POLE tumours')
+summaryTable.sub$Age <- cut(summaryTable.sub$Age, quantile(summaryTable.sub$Age, na.rm=T))
+p8 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$Age),], aes(x=Age, y=MutRatio, fill=as.factor(Age))) + geom_violin() +
+  guides(fill=F) + labs(y=ylb,title='All non-POLE tumours')
+p9 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$Race),], aes(x=Race, y=MutRatio, fill=Race)) + geom_violin() +
+  #stat_compare_means(comparisons = list(c('black or african american','white'), c('black or african american','asian'), c('asian','white'))) +
+  guides(fill=F) + labs(y=ylb,title='All non-POLE tumours')
+
+summaryTable.sub2 <- subset(summaryTable.sub, !LOH & (MSI=='MSI-H'))
+p42 <- ggplot(summaryTable.sub2[!is.na(summaryTable.sub2$MUT),], aes(x=MUT, y=MutRatio, fill=MUT)) + geom_violin() +
+  stat_compare_means(comparisons = list(c('TRUE','FALSE'))) +
+  guides(fill=F) + labs(y=ylb, x='Mutated in HLA', title='MSI tumours without LOH')
+
+summaryTable.sub2 <- subset(summaryTable.sub, (MSI == 'MSI-L'))
+p52 <- ggplot(summaryTable.sub2[!is.na(summaryTable.sub2$LOH),], aes(x=LOH, y=MutRatio, fill=LOH)) + geom_violin() +
+  stat_compare_means(comparisons = list(c('TRUE','FALSE'))) +
+  guides(fill=F) + labs(y=ylb, x='LOH in HLA', title='MSS tumours')
+
+
+pdf('~/Dropbox/Code/TCGA/Figures/Mutneoep_filtered_stats.pdf', width=6.5, height=5)
+#print(p0); print(p1); print(p2); print(p3); print(p4); print(p5);print(p6); print(p7); print(p8); print(p9); print(p42); print(p52)
+
+print(p0);print(p1+scale_y_log10());  print(p2+scale_y_log10());  print(p3+scale_y_log10());  print(p4+scale_y_log10());  print(p5+scale_y_log10());  print(p6+scale_y_log10());  print(p7+scale_y_log10());  print(p8+scale_y_log10());  print(p9+scale_y_log10());  print(p42+scale_y_log10());  print(p52+scale_y_log10());
+dev.off()
+
 
 #Lowest/highest mutation ratios?
 
