@@ -126,7 +126,6 @@ names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom
 summaryTable <- processSummaryOfSampleSet(dir, epTable, prefix)
 
 summaryTable$MutRatio <- summaryTable$Total/summaryTable$Total_MUT
-summaryTable <- summaryTable[order(summaryTable$MutRatio),]
 
 summaryTable$MSI <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'MSI']
 summaryTable$Hyp <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'Hypermut']
@@ -150,7 +149,10 @@ ylb <- 'RATIO of neo-epitope associated mutations'
 summaryTable.sub$MutRatio <- summaryTable.sub$Total #Instead look at the total number of neo-epitope mutations
 ylb <- 'TOTAL neo-epitope associated mutations'
 
-p0 <- ggplot(summaryTable.sub, aes(x=Total_MUT, y=MutRatio, colour=as.factor(Hyp))) + geom_point() + scale_x_continuous(trans='log10') +scale_y_continuous(trans='log10') +
+summaryTable.sub$MutRatio <- summaryTable.sub$Neoep
+ylb <- 'TOTAL neo-epitopes'
+
+p0 <- ggplot(summaryTable.sub, aes(x=Total_MUT, y=MutRatio, colour=as.factor(Hyp))) + geom_point() + scale_x_continuous(trans='log10') +
   stat_cor(label.x.npc = 'centre') + stat_cor(mapping=aes(x=Total_MUT,y=MutRatio,colour=Hyp),label.x.npc='centre', label.y.npc='bottom') +
   scale_color_manual(values=c(rgb(0.2,0.35,0.45), rgb(0.35,0.55,0.8))) +
   labs(colour='Hypermutated', x='Total somatic missense mutations', y=ylb)
@@ -197,7 +199,7 @@ p52 <- ggplot(summaryTable.sub2[!is.na(summaryTable.sub2$LOH),], aes(x=LOH, y=Mu
 pdf('~/Dropbox/Code/TCGA/Figures/Mutneoep_filtered_stats.pdf', width=6.5, height=5)
 #print(p0); print(p1); print(p2); print(p3); print(p4); print(p5);print(p6); print(p7); print(p8); print(p9); print(p42); print(p52)
 
-print(p0);print(p1+scale_y_log10());  print(p2+scale_y_log10());  print(p3+scale_y_log10());  print(p4+scale_y_log10());  print(p5+scale_y_log10());  print(p6+scale_y_log10());  print(p7+scale_y_log10());  print(p8+scale_y_log10());  print(p9+scale_y_log10());  print(p42+scale_y_log10());  print(p52+scale_y_log10());
+print(p0_scale_y_log10());print(p1+scale_y_log10());  print(p2+scale_y_log10());  print(p3+scale_y_log10());  print(p4+scale_y_log10());  print(p5+scale_y_log10());  print(p6+scale_y_log10());  print(p7+scale_y_log10());  print(p8+scale_y_log10());  print(p9+scale_y_log10());  print(p42+scale_y_log10());  print(p52+scale_y_log10());
 dev.off()
 
 
@@ -207,7 +209,7 @@ dev.off()
 
 #Check if there are shared epitopes/mutations
 epTable$Gene.name <- sapply(epTable$Gene, function(x) unlist(strsplit(x, ':'))[1]  )
-epTable$mutation <- apply(epTable, 1,function(x) paste0(x['Chrom'], ':',x['Start'] ) )
+epTable$mutation <- apply(epTable, 1,function(x) paste0(x['Chrom'], ':',x['Start'], ':',x['AltAll'] ) )
 epTable.mut.dedup <- epTable[!duplicated(epTable[, c('Sample', 'LineID')]),]
 epTable.pep.dedup <- epTable[!duplicated(epTable[, c('Sample', 'peptide')]),]
 
@@ -216,3 +218,27 @@ mutation.table.sorted <- mutation.table[order(-mutation.table)]
 
 epitope.table <- table(epTable.pep.dedup$peptide)
 epitope.table.sorted <- epitope.table[order(-epitope.table)]
+
+gene.table <- table(epTable.mut.dedup$Gene.name)
+gene.table.sorted <- gene.table[order(-gene.table)]
+
+#Compare neoep mutations with generic mutations
+
+mutTable <- data.frame(matrix(vector()))
+
+for (samp in unique(epTable$Sample)){
+muts <- tryCatch(
+  {read.table(paste0(dir,'/VCF/',samp,'.vcf'),sep='\t', stringsAsFactors = F)[,c(1,2,4,5)]},
+  error=function(e){return(NA)}
+)
+if(!is.na(muts)){
+  muts$Sample <- samp
+  mutTable <- rbind(mutTable, muts)
+}
+}
+names(mutTable)[1:4] <- c('Chrom', 'Start', 'RefAll', 'AltAll')
+
+mutTable$mutation <- apply(mutTable, 1,function(x) paste0(x['Chrom'], ':',x['Start'], ':',x['AltAll'] ) )
+all.table <- table(mutTable$mutation); all.table.sorted <- all.table[order(-all.table)]
+
+x <- subset(mutTable, mutation=='chr7:140753336:T')

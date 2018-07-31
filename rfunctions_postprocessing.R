@@ -124,6 +124,7 @@ recalculateSummaryTable <- function(epTable, summaryTable, mutations=T){
     eps <- subsetEpTable(epTable, sample, uniqueMutations = mutations)
     summaryTableMut <- getStats(eps, sample, summaryTableMut)
   }
+  summaryTableMut$Neoep <- summaryTable[match(row.names(summaryTableMut), row.names(summaryTable)),'Total']
   
   return(summaryTableMut)
 }
