@@ -126,6 +126,7 @@ names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom
 summaryTable <- processSummaryOfSampleSet(dir, epTable, prefix)
 
 summaryTable$MutRatio <- summaryTable$Total/summaryTable$Total_MUT
+summaryTable$NeoepRatio <- summaryTable$Neoep/summaryTable$Total
 
 summaryTable$MSI <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'MSI']
 summaryTable$Hyp <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'Hypermut']
@@ -133,18 +134,28 @@ summaryTable$B2M <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'B2
 summaryTable$VS <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'VS']
 summaryTable$Age <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'Age']/365
 summaryTable$Race <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'Race']
+summaryTable$Cancer <- clin.df[match(row.names(summaryTable), clin.df$Patient), 'Cancer']
 summaryTable$Stage <- gsub('[abc]', '', clin.df[match(row.names(summaryTable), clin.df$Patient), 'Stage'])
 summaryTable[summaryTable=='not reported'] <- NA
 
 summaryTable$LOH <- lohhla.patients[match(row.names(summaryTable), lohhla.patients$ID), 'LOH']
 summaryTable$MUT <- lohhla.patients[match(row.names(summaryTable), lohhla.patients$ID), 'MUT']
+summaryTable$PDL <- lohhla.patients[match(row.names(summaryTable), lohhla.patients$ID), 'PDL']
+summaryTable$CYT <- lohhla.patients[match(row.names(summaryTable), lohhla.patients$ID), 'CYT']
+
+immTable <- read.table('~/Dropbox/Code/TCGA/data_CRC_fullimmune.txt',stringsAsFactors = F, header=T, sep='\t')
+summaryTable$IP <- immTable[match(row.names(summaryTable), immTable$sampleID), 'Immune.phenotype']
 #summaryTable$MSI <- clin.df.verified[match(row.names(summaryTable), clin.df.verified$Patient), 'MSI']
 #summaryTable$Hyp <- clin.df.verified[match(row.names(summaryTable), clin.df.verified$Patient), 'Hypermut']
 
 # Compare neoep-mutation ratio in MSI and MSS
 summaryTable.sub <- subset(summaryTable, MSI != 'POLE')
 summaryTable.sub <- subset(summaryTable.sub, Total_MUT > 30)
+mlab <- 'All non-POLE tumours'
 ylb <- 'RATIO of neo-epitope associated mutations'
+
+summaryTable.sub$MutRatio <- summaryTable.sub$NeoepRatio
+ylb <- 'AVG NUMBER of neo-epitopes from one mutation'
 
 summaryTable.sub$MutRatio <- summaryTable.sub$Total #Instead look at the total number of neo-epitope mutations
 ylb <- 'TOTAL neo-epitope associated mutations'
@@ -152,38 +163,53 @@ ylb <- 'TOTAL neo-epitope associated mutations'
 summaryTable.sub$MutRatio <- summaryTable.sub$Neoep
 ylb <- 'TOTAL neo-epitopes'
 
+summaryTable.sub$MutRatio <- summaryTable.sub$Total_MUT
+ylb <- 'TOTAL somatic missense mutations'
+
 p0 <- ggplot(summaryTable.sub, aes(x=Total_MUT, y=MutRatio, colour=as.factor(Hyp))) + geom_point() + scale_x_continuous(trans='log10') +
   stat_cor(label.x.npc = 'centre') + stat_cor(mapping=aes(x=Total_MUT,y=MutRatio,colour=Hyp),label.x.npc='centre', label.y.npc='bottom') +
   scale_color_manual(values=c(rgb(0.2,0.35,0.45), rgb(0.35,0.55,0.8))) +
   labs(colour='Hypermutated', x='Total somatic missense mutations', y=ylb)
 p1 <- ggplot(summaryTable.sub, aes(x=MSI, y=MutRatio, fill=as.factor(MSI))) + geom_violin() +
 stat_compare_means(comparisons = list(c('MSI-H', 'MSI-L'))) +
-  guides(fill=F) + labs(y=ylb, title='All non-POLE tumours')
+  guides(fill=F) + labs(y=ylb, title=mlab)
 p2 <- ggplot(summaryTable.sub, aes(x=Hyp, y=MutRatio, fill=as.factor(Hyp))) + geom_violin() +
   stat_compare_means(comparisons = list(c(1,0))) +
-  guides(fill=F) + labs(y=ylb, x='Hypermutated', title='All non-POLE tumours')
+  guides(fill=F) + labs(y=ylb, x='Hypermutated', title=mlab)
 p3 <- ggplot(summaryTable.sub, aes(x=B2M, y=MutRatio, fill=B2M)) + geom_violin() +
   stat_compare_means(comparisons = list(c('TRUE','FALSE'))) +
-  guides(fill=F) + labs(y=ylb, x='Mutated in B2M', title='All non-POLE tumours')
+  guides(fill=F) + labs(y=ylb, x='Mutated in B2M', title=mlab)
 p4 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$MUT),], aes(x=MUT, y=MutRatio, fill=MUT)) + geom_violin() +
   stat_compare_means(comparisons = list(c('TRUE','FALSE'))) +
-  guides(fill=F) + labs(y=ylb, x='Mutated in HLA', title='All non-POLE tumours')
+  guides(fill=F) + labs(y=ylb, x='Mutated in HLA', title=mlab)
 p5 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$LOH),], aes(x=LOH, y=MutRatio, fill=as.factor(LOH))) + geom_violin() +
   stat_compare_means(comparisons = list(c('TRUE','FALSE'))) +
-  guides(fill=F) + labs(y=ylb, x='LOH in HLA', title='All non-POLE tumours')
+  guides(fill=F) + labs(y=ylb, x='LOH in HLA', title=mlab)
 p6 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$VS),], aes(x=VS, y=MutRatio, fill=as.factor(VS))) + geom_violin() +
   stat_compare_means(comparisons = list(c('alive','dead'))) +
-  guides(fill=F) + labs(y=ylb, x='Vital status', title='All non-POLE tumours')
+  guides(fill=F) + labs(y=ylb, x='Vital status', title=mlab)
 p7 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$Stage),], aes(x=Stage, y=MutRatio, fill=as.factor(Stage))) + geom_violin() +
   #stat_compare_means(comparisons = list(c('stge i', 'stge ii'), c('stge ii', 'stge iii'), c('stge iii', 'stge iv'),
-  #                                      c('stge i', 'stge iii'), c('stge ii', 'stge iv'), c('stge i', 'stge iv')))
-  guides(fill=F) + labs(y=ylb, title='All non-POLE tumours')
-summaryTable.sub$Age <- cut(summaryTable.sub$Age, quantile(summaryTable.sub$Age, na.rm=T))
-p8 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$Age),], aes(x=Age, y=MutRatio, fill=as.factor(Age))) + geom_violin() +
-  guides(fill=F) + labs(y=ylb,title='All non-POLE tumours')
+  #                                      c('stge i', 'stge iii'), c('stge ii', 'stge iv'), c('stge i', 'stge iv'))) +
+  guides(fill=F) + labs(y=ylb, title=mlab)
+#summaryTable.sub$Age <- cut(summaryTable.sub$Age, quantile(summaryTable.sub$Age, na.rm=T))
+#p8 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$Age),], aes(x=Age, y=MutRatio, fill=as.factor(Age))) + geom_violin() +
+#  guides(fill=F) + labs(y=ylb,title=mlab)
+p8 <- ggplot(summaryTable.sub, aes(x=Age, y=MutRatio, colour=-Age)) + geom_point() + stat_cor() +
+  guides(colour=F) + labs(y=ylb,title=mlab)
 p9 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$Race),], aes(x=Race, y=MutRatio, fill=Race)) + geom_violin() +
-  #stat_compare_means(comparisons = list(c('black or african american','white'), c('black or african american','asian'), c('asian','white'))) +
-  guides(fill=F) + labs(y=ylb,title='All non-POLE tumours')
+  stat_compare_means(comparisons = list(c('black or african american','white'), c('black or african american','asian'), c('asian','white'))) +
+  guides(fill=F) + labs(y=ylb,title=mlab)
+p10 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$IP),], aes(x=as.factor(IP), y=MutRatio, fill=as.factor(IP))) + geom_violin() +
+  #stat_compare_means(comparisons = list(c('4','6'), c('1','4'), c('3','4'))) +
+  guides(fill=F) + labs(y=ylb,title=mlab)
+p11 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$Cancer),], aes(x=Cancer, y=MutRatio, fill=Cancer)) + geom_violin() +
+  stat_compare_means(comparisons = list(c('TCGA-COAD','TCGA-READ'))) +
+  guides(fill=F) + labs(y=ylb,title=mlab)
+p12 <- ggplot(summaryTable.sub, aes(x=PDL, y=MutRatio, colour=-PDL)) + geom_point() + stat_cor() +
+  guides(colour=F) + labs(y=ylb,title=mlab)
+p13 <- ggplot(summaryTable.sub, aes(x=CYT, y=MutRatio, colour=-CYT)) + geom_point() + stat_cor() +
+  guides(colour=F) + labs(y=ylb,title=mlab)
 
 summaryTable.sub2 <- subset(summaryTable.sub, !LOH & (MSI=='MSI-H'))
 p42 <- ggplot(summaryTable.sub2[!is.na(summaryTable.sub2$MUT),], aes(x=MUT, y=MutRatio, fill=MUT)) + geom_violin() +
@@ -197,9 +223,9 @@ p52 <- ggplot(summaryTable.sub2[!is.na(summaryTable.sub2$LOH),], aes(x=LOH, y=Mu
 
 
 pdf('~/Dropbox/Code/TCGA/Figures/Mutneoep_filtered_stats.pdf', width=6.5, height=5)
-#print(p0); print(p1); print(p2); print(p3); print(p4); print(p5);print(p6); print(p7); print(p8); print(p9); print(p42); print(p52)
+#print(p0); print(p1); print(p2); print(p3); print(p4); print(p5); print(p12); print(p13);print(p6); print(p7); print(p9); print(p10);print(p11); print(p8); print(p42); print(p52)
 
-print(p0_scale_y_log10());print(p1+scale_y_log10());  print(p2+scale_y_log10());  print(p3+scale_y_log10());  print(p4+scale_y_log10());  print(p5+scale_y_log10());  print(p6+scale_y_log10());  print(p7+scale_y_log10());  print(p8+scale_y_log10());  print(p9+scale_y_log10());  print(p42+scale_y_log10());  print(p52+scale_y_log10());
+print(p0+scale_y_log10());print(p1+scale_y_log10());  print(p2+scale_y_log10());  print(p3+scale_y_log10());  print(p4+scale_y_log10());  print(p5+scale_y_log10());print(p12+scale_y_log10());print(p13+scale_y_log10());  print(p6+scale_y_log10());  print(p7+scale_y_log10());  print(p9+scale_y_log10()); print(p10+scale_y_log10()); print(p11+scale_y_log10());print(p8+scale_y_log10());  print(p42+scale_y_log10());  print(p52+scale_y_log10());
 dev.off()
 
 
@@ -241,4 +267,27 @@ names(mutTable)[1:4] <- c('Chrom', 'Start', 'RefAll', 'AltAll')
 mutTable$mutation <- apply(mutTable, 1,function(x) paste0(x['Chrom'], ':',x['Start'], ':',x['AltAll'] ) )
 all.table <- table(mutTable$mutation); all.table.sorted <- all.table[order(-all.table)]
 
-x <- subset(mutTable, mutation=='chr7:140753336:T')
+mutCompare <- data.frame(matrix(vector(), nrow=length(mutation.table)))
+row.names(mutCompare) <- names(mutation.table)
+mutCompare$Neoep <- mutation.table[match(row.names(mutCompare), names(mutation.table))]
+mutCompare$All <- all.table[match(row.names(mutCompare), names(all.table))]
+
+mutCompare.signif <- subset(mutCompare, All>25)
+
+
+############################################################################
+# Recognition Potential ---------------------------------------------------
+
+epTable$AntigenID <- apply(epTable, 1,function(x) paste0(x['Sample'], ':',x['Identity'], ':',x['peptide'] ) )
+
+
+recoTable <- read.table('~/CRCdata/TCGA_CRC/Neopred_results/PredictedRecognitionPotentials.txt',
+                        stringsAsFactors = F, header=T)
+
+recoTable$AntigenID <- apply(recoTable, 1,function(x) paste0(x['Sample'], ':',x['Mutation'], ':',x['MutantPeptide'] ) )
+
+recoTable.imm <- subset(recoTable, NeoantigenRecognitionPotential>1e-4)
+
+epTable.imm <- subset(epTable, AntigenID %in% recoTable.imm$AntigenID)
+
+

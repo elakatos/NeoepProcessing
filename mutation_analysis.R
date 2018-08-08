@@ -1,16 +1,15 @@
 
-dir <- 'IBD'
-epTable <- read.table(paste0(dir, '/Neopred_results/Output.neoantigens.txt'), header=F,
+dir <- '../TCGA_CRC'
+prefix <- 'Total'
+epTable <- read.table(paste0(dir, '/Neopred_results/',prefix,'.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
 names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
-                    'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score', 'Rank', 'Cand', 'BindLevel', 'Novelty')
-epNon <- epTable[epTable$Novelty==0,]
-epTable <- epTable[epTable$Novelty!=0,]
-
-epTable <- filterByWTBinding(dir, epTable, 'a')
-
-epTableStrong <- epTable[epTable$BindLevel=='SB',]
+                    'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score', 'Affinity', 'Rank', 'Cand', 'BindLevel')
+#epNon <- epTable[epTable$Novelty==0,]
+#epTable <- epTable[epTable$Novelty!=0,]
+#epTable <- filterByWTBinding(dir, epTable, 'a')
+#epTableStrong <- epTable[epTable$BindLevel=='SB',]
 
 vafTestDF <- data.frame(matrix(vector(), ncol=4))
 names(vafTestDF) <- c('Sample', 'Region', 'UB', 'pValue')
@@ -144,3 +143,68 @@ cat('\n', file='~/RNAseq/Software/NeoepProcessing/HLA_list.txt', append=T)
 cat(hlasB, sep=' ', file='~/RNAseq/Software/NeoepProcessing/HLA_list.txt', append=T)
 cat('\n', file='~/RNAseq/Software/NeoepProcessing/HLA_list.txt', append=T)
 cat(hlasC, sep=' ', file='~/RNAseq/Software/NeoepProcessing/HLA_list.txt', append=T)
+
+
+###########################################################################
+# TCGA analysis -----------------------------------------------------------
+
+dir <- '../TCGA_CRC'
+prefix <- 'Total'
+epTable <- read.table(paste0(dir, '/Neopred_results/',prefix,'.neoantigens.txt'), header=F,
+                      sep = '\t',stringsAsFactors = F, fill=T)
+names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
+                    'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
+                    'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score', 'Affinity', 'Rank', 'Cand', 'BindLevel')
+
+epTable$mutID <- apply(epTable, 1,function(x) paste0(x['Sample'], ':',x['LineID'] ) )
+
+#epTable <- subset(epTable, Affinity<200)
+
+
+allMutVAFs <- data.frame(matrix(vector(), ncol=3)); names(allMutVAFs) <- c('Sample', 'LineID', 'VAF')
+
+for(sample in unique(epTable$Sample)){
+sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
+exonic <- readExonicFile(sampleFileEx)
+
+tmpVAF <- data.frame(Sample=sample, LineID=exonic$LineID, VAF=computeVafAD(exonic, 22))
+allMutVAFs <- rbind(allMutVAFs, tmpVAF)
+}
+
+allMutVAFs$mutID <- apply(allMutVAFs, 1,function(x) paste0(x['Sample'], ':',x['LineID'] ) )
+
+pdf(paste0(dir, '_VAFs_collection_rp.pdf'),width=8,height=5)
+
+fmax=0.8; fmin=0.1
+steps <- seq(fmax,fmin,by=(-1e-2))
+
+for (samp in row.names(subset(summaryTable, (Total>200)))){
+#for (samp in row.names(subset(summaryTable, (Total>120) & !(MUT) & !(LOH) & !(B2M) & !(PDL)))){
+  
+pAll <- ggplot(subset(allMutVAFs, (Sample==samp)), aes(x=VAF)) + geom_histogram(bins=30)
+pEp <- ggplot(subset(allMutVAFs, (Sample==samp) & (mutID %in% epTable$mutID)), aes(x=VAF, y=..density..)) + geom_histogram(bins=30, fill='firebrick3', alpha=0.5) +
+  labs(title=samp) + scale_x_continuous(breaks = seq(0, 0.8, 0.2)) +
+  geom_histogram(data=subset(allMutVAFs, (Sample==samp) & !(mutID %in% epTable$mutID)), aes(x=VAF,y=..density..), bins=30, fill='skyblue4', alpha=0.5)
+
+vafAll<-subset(allMutVAFs, (Sample==samp))$VAF
+vafEp <- subset(allMutVAFs, (Sample==samp) & (mutID %in% epTable$mutID))$VAF
+
+cumvaf <- data.frame(invf = (1/steps), cumvaf=sapply(steps, function(x) sum(vafAll>=x))/length(vafAll),
+                     cumvafEp=sapply(steps, function(x) sum(vafEp>=x))/length(vafEp))
+pCum <- ggplot(cumvaf, aes(x=invf, y=cumvaf)) + geom_line() + geom_line(data=cumvaf, aes(x=invf, y=cumvafEp), colour='red') +
+  labs(x='1/f', y='Cumulative frequency', title=summaryTable[samp,'MSI'])
+
+grid.arrange(pEp, pCum, nrow=1)
+
+}
+dev.off()
+
+
+
+# VAF vs epitope-strength -------------------------------------------------
+
+samp <- 'TCGA-AD-6889'
+d <- epTable.dedup[epTable.dedup$Sample==samp,]
+d$VAF <- allMutVAFs[match(d$mutID, allMutVAFs$mutID),'VAF']
+ggplot(d, aes(x=Rank, y=VAF)) + geom_point() + scale_y_continuous(limits=c(0, 0.25)) + stat_cor()
+

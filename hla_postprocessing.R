@@ -145,6 +145,7 @@ lohhla.master$QVal <- p.adjust(lohhla.master$PVal_unique, method='fdr')
 lohhla.master$Label <- sapply(1:nrow(lohhla.master), function(i) labelHLAAI(lohhla.master[i,]))
 lohhla.master$Rel <- sapply(1:nrow(lohhla.master), function(i) labelHLArel(lohhla.master[i,], 30))
 
+lohhla.master <- read.table('~/Dropbox/Code/TCGA/CRC_LOHHLA_master_file.txt', stringsAsFactors = F)
 # Filtered version: filter on the master table level
 
 lohhla.master <- subset(lohhla.master, Rel==T)
@@ -262,6 +263,8 @@ for (dir in dirList){
   }
 }
 
+muthla.master <- read.table('~/Dropbox/Code/TCGA/CRC_MUTHLA_master_file.txt', stringsAsFactors = F)
+
 muthla.signif <- subset(muthla.master, protein_change!=-1)
 muthla.signif$nonsyn <- sapply(muthla.signif$protein_change, function(x) substr(x,3,3) != substr(x, nchar(x), nchar(x)))
 muthla.signif <- subset(muthla.signif, nonsyn)
@@ -327,18 +330,23 @@ lohhla.df$CopyNumber <- as.numeric(lohhla.df$CopyNumber)
 lohhla.df$p.value <- as.numeric(lohhla.df$p.value)
 lohhla.df <- lohhla.df[order(lohhla.df$Region),]
 
-pLOH <- ggplot(lohhla.df, aes(x=Allele, y=Region, fill=CopyNumber)) + geom_tile() +
-  scale_fill_gradientn(colours=c('red4', 'brown3', 'mistyrose2', 'bisque', 'cornsilk3'), limits=c(-0.7, 2), na.value='grey70') +
+pLOH <- ggplot(lohhla.df, aes(y=Allele, x=Region, fill=CopyNumber)) + geom_tile() +
+  scale_fill_gradientn(colours=c('red4', 'red4', 'red4', 'red4', 'brown3', 'mistyrose2', 'bisque', 'cornsilk3'), limits=c(-2.5, 2), na.value='grey70') +
   theme_bw()
-pP <- ggplot(lohhla.df, aes(x=Allele, y=Region, fill=log(log(1/p.value)))) + geom_tile() +
-  scale_fill_gradientn(colours=c('lightyellow2', 'lightyellow2', 'brown3', 'red4'), values=c(0, 0.7,0.75, 1), limits=c(-4.6, 3.3), na.value='grey70')
-
-pdf('~/CRCdata/HLA_LOH/CRCmseq/LOHHLA_heatmap_Set6.pdf', height=7, width=5)
-print(pLOH)
-dev.off()
-
 
 # HLA modifications heatmap -----------------------------------------------
+
+muthla.df <- data.frame('Region'=character(), 'Allele' = character(), 'HLA mutation'=numeric())
+
+for (i in 1:nrow(head(muthla.signif))){
+  x <- muthla.signif[i,]
+  #r <- substr(x$region,1,nchar(x$region)-6)
+  r <- x$individual
+  allele <- paste0('HLA-',toupper(substr(x$contig,5,5)))
+  val <- ifelse(x$nonsyn, 1, 0)
+  muthla.df[i,] <- c(r, allele, val)
+}
+
 
 
 
@@ -347,28 +355,40 @@ dev.off()
 ######################################################################################
 # Gene expression ---------------------------------------------------------
 
+tcga.tpm <- read.table('~/Dropbox/Code/TCGA/CRC_RNA_expression.tpm', stringsAsFactors = F, header=T)
+tcga.normal.tpm <- read.table('~/Dropbox/Code/TCGA/Normal_colon_samples.tpm', stringsAsFactors = F, header=T, row.names=1)
 
 # Cytolytic activity ------------------------------------------------------
 
 gzma <- 'ENSG00000145649'
 prf <- 'ENSG00000180644'
 pdl <- 'ENSG00000120217'
-exprcyt <- tcga.all.tpm[c(gzma, prf),]
+exprcyt <- log10(tcga.tpm[c(gzma, prf),]+1)
 cyts <- apply(exprcyt, 2, function(x) sqrt(x[1]*x[2]))
-#ggplot(data.frame(value=cyts), aes(x=value)) + geom_density()
+ggplot(data.frame(value=cyts), aes(x=value)) + geom_density()
 
-exprpdl <- as.data.frame(tcga.all.tpm[pdl,,drop=F])
+exprpdl <- sapply(tcga.tpm[pdl,], function(x) log10(x+1))
+
+exprpdl.norm <- sapply(tcga.normal.tpm[pdl,], function(x) log10(x+1))
+ggplot(data.frame(value=exprpdl), aes(x=value)) + geom_density(colour='firebrick3') +
+  geom_density(data=data.frame(value=exprpdl.norm), aes(x=value)) +
+  geom_vline(xintercept=(mean(exprpdl.norm)+2*sd(exprpdl.norm)))
+
+pdl.over <- names(exprpdl)[exprpdl > (mean(exprpdl.norm)+2*sd(exprpdl.norm))]
 
 lohhla.patients$CYT <- cyts[match(gsub('-','.',lohhla.patients$ID), names(cyts))]
 ggplot(na.omit(lohhla.patients), aes(x=MSI, y=CYT, fill=MSI)) + geom_violin() +
   scale_y_continuous(trans='log10') + stat_compare_means()
 
-lohhla.patients.mss <- subset(lohhla.patients, HYP==F)
-lohhla.patients.mss.norm <- subset(lohhla.patients, (HYP==F) & (HIGH==T | LOH==T)   )
-ggplot(na.omit(lohhla.patients.mss.norm), aes(x=HIGH, y=CYT, fill=HIGH)) + geom_violin() +
+lohhla.patients$PDL <- exprpdl[match(gsub('-','.',lohhla.patients$ID), names(exprpdl))]
+ggplot(na.omit(lohhla.patients), aes(x=MSI, y=PDL, fill=MSI)) + geom_violin() +
   scale_y_continuous(trans='log10') + stat_compare_means()
 
-#lohhla.patients$PD <- exprpdl[match(gsub('-','.',lohhla.patients$ID), names(exprpdl))]
+lohhla.patients.mss <- subset(lohhla.patients, HYP==F)
+lohhla.patients.mss.norm <- subset(lohhla.patients, (HYP==F) & (HIGH==T | LOH==T)   )
+ggplot(na.omit(lohhla.patients.mss), aes(x=LOH, y=CYT, fill=LOH)) + geom_violin() +
+  scale_y_continuous(trans='log10') + stat_compare_means()
+
 
 
 # Purity in CRC from Pierre -----------------------------------------------

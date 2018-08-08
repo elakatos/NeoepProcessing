@@ -60,7 +60,7 @@ computeVafAD <- function(readData, colInd){
   readVec <- readData[,colInd]
   readVec <- readVec[readVec!='.']
   readInfo <- strsplit(readVec, ':')
-  AD <- map(readInfo, 11)
+  AD <- map(readInfo, 2)
   ADvec <- sapply(AD, function(i) strsplit(i, ','))
   vafs <- as.numeric(map(ADvec, 2))/(as.numeric(map(ADvec, 1))+as.numeric(map(ADvec,2)))
   return(vafs)
@@ -122,9 +122,11 @@ recalculateSummaryTable <- function(epTable, summaryTable, mutations=T){
   summaryTableMut <- summaryTable
   for (sample in row.names(summaryTableMut)){
     eps <- subsetEpTable(epTable, sample, uniqueMutations = mutations)
+    epsTot <- nrow(subsetEpTable(epTable, sample, F))
     summaryTableMut <- getStats(eps, sample, summaryTableMut)
+    summaryTableMut[sample, 'Neoep'] <- epsTot
   }
-  summaryTableMut$Neoep <- summaryTable[match(row.names(summaryTableMut), row.names(summaryTable)),'Total']
+  #summaryTableMut$Neoep <- summaryTable[match(row.names(summaryTableMut), row.names(summaryTable)),'Total']
   
   return(summaryTableMut)
 }
