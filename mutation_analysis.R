@@ -108,6 +108,21 @@ pl <- p1+scale_x_continuous(limits=c(0.02, 0.7)) + scale_y_continuous(breaks=c(0
 print(pl)
 dev.off()
 
+# Entire VAF of CRCmseq samples
+
+vcf <- read.table('~/RNAseq/Neoepitopes/CRCmseq_Set/avready/Set.10.snv.avinput',sep='\t', stringsAsFactors = F)
+names(vcf)[c(1:5, 18:ncol(vcf))] <- c('chr','start','end','ref','alt',getRegionNames(ncol(vcf)-18,T))
+
+v <- getRegionNames(ncol(vcf)-18)
+vaf.data <- data.frame(matrix(vector(), ncol=length(v),nrow=nrow(vcf)))
+vaf.data[,1:length(v)] <- sapply(v, function(z) computeVaf(vcf,z))
+
+ggplot(melt(vaf.data), aes(x=value, fill=variable)) + geom_histogram(alpha=0.6, position='dodge')
+ggplot(vaf.data[vaf.data$X4>(-0)& vaf.data$X4<0.8 ,], aes(x=X4)) + geom_histogram(bins=40) +
+  geom_histogram(data=vaf.data[rowSums(vaf.data==0)==0,], aes(x=X4), fill='red', alpha=0.5,bins=40)
+
+#ggplot(vaf.data[rowSums(vaf.data==0)==0,], aes(x=X13)) + geom_histogram(bins=30)
+
 # Epitope distribution ----------------------------------------------------
 
 tumorColumns = grep('Region*', names(eps))
