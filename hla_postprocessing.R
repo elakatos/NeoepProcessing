@@ -120,7 +120,7 @@ analyseLohhla <- function(lohhla.master, clin.df){
 }
 
 
-dir <- '~/CRCdata/HLA_LOH/TCGA/'
+dir <- '~/CRCdata/HLA_LOH/TCGA_STAD/'
 fileList <- list.files(dir, pattern='*.10.DNA.HLAloss*')
 
 lohhla.master <- data.frame(matrix(vector()))

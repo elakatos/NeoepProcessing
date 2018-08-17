@@ -150,7 +150,7 @@ summaryTable$IP <- immTable[match(row.names(summaryTable), immTable$sampleID), '
 
 # Compare neoep-mutation ratio in MSI and MSS
 summaryTable.sub <- subset(summaryTable, MSI != 'POLE')
-summaryTable.sub <- subset(summaryTable.sub, Total_MUT > 30)
+summaryTable.sub <- subset(summaryTable.sub, Total_MUT > 70)
 mlab <- 'All non-POLE tumours'
 ylb <- 'RATIO of neo-epitope associated mutations'
 
@@ -222,10 +222,10 @@ p52 <- ggplot(summaryTable.sub2[!is.na(summaryTable.sub2$LOH),], aes(x=LOH, y=Mu
   guides(fill=F) + labs(y=ylb, x='LOH in HLA', title='MSS tumours')
 
 
-pdf('~/Dropbox/Code/TCGA/Figures/Mutneoep_filtered_stats.pdf', width=6.5, height=5)
-#print(p0); print(p1); print(p2); print(p3); print(p4); print(p5); print(p12); print(p13);print(p6); print(p7); print(p9); print(p10);print(p11); print(p8); print(p42); print(p52)
+pdf('~/Dropbox/Code/TCGA/Figures/Mutratio_filtered_recoexpressed_stats.pdf', width=6.5, height=5)
+print(p0); print(p1); print(p2); print(p3); print(p4); print(p5);print(p6); print(p7); print(p9); print(p10);print(p11); print(p8); print(p42); print(p52)
 
-print(p0+scale_y_log10());print(p1+scale_y_log10());  print(p2+scale_y_log10());  print(p3+scale_y_log10());  print(p4+scale_y_log10());  print(p5+scale_y_log10());print(p12+scale_y_log10());print(p13+scale_y_log10());  print(p6+scale_y_log10());  print(p7+scale_y_log10());  print(p9+scale_y_log10()); print(p10+scale_y_log10()); print(p11+scale_y_log10());print(p8+scale_y_log10());  print(p42+scale_y_log10());  print(p52+scale_y_log10());
+#print(p0+scale_y_log10());print(p1+scale_y_log10());  print(p2+scale_y_log10());  print(p3+scale_y_log10());  print(p4+scale_y_log10());  print(p5+scale_y_log10());print(p12+scale_y_log10());print(p13+scale_y_log10());  print(p6+scale_y_log10());  print(p7+scale_y_log10());  print(p9+scale_y_log10()); print(p10+scale_y_log10()); print(p11+scale_y_log10());print(p8+scale_y_log10());  print(p42+scale_y_log10());  print(p52+scale_y_log10());
 dev.off()
 
 
@@ -290,4 +290,19 @@ recoTable.imm <- subset(recoTable, NeoantigenRecognitionPotential>1e-4)
 
 epTable.imm <- subset(epTable, AntigenID %in% recoTable.imm$AntigenID)
 
+############################################################################
+# Add expression ----------------------------------------------------------
+
+expr <- read.table('~/Dropbox/Code/TCGA/CRC_RNA_expression.tpm', sep='\t', header=T, row.names=1, stringsAsFactors = F)
+gene.key <- read.table('~/Dropbox/Code/mart_export.txt', sep='\t', header=T)
+
+gene.med = apply(expr, 1, median)
+names(gene.med) <- sapply(names(gene.med), function(z) unlist(strsplit(z, '\\.'))[1])
+gene.key$Median <- gene.med[match(gene.key$Gene.stable.ID, names(gene.med))]
+gene.key <- gene.key[order(-gene.key$Median),]
+
+epTable$Gene.median <- gene.key[match(epTable$Gene.name, gene.key$Gene.name), 'Median']
+
+epTable$Gene.expr <- apply(epTable, 1, function(x)
+  expr[gene.key[match(x['Gene.name'], gene.key$Gene.name),'Gene.stable.ID'],gsub('-', '.',x['Sample'])])
 

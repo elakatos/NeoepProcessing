@@ -20,6 +20,14 @@ filterSomatic <- function(vcf, normInd){
   return(vcf.somatic)
 }
 
+filterSomatic2 <- function(vcf, normInd){
+  normalNV <- sapply(vcf[,normInd], function(x) as.numeric(tail(unlist(strsplit(x, ':')),1)))
+  normalNR <- sapply(vcf[,normInd], function(x) as.numeric(tail(unlist(strsplit(x, ':')),2)[1]))
+  
+  vcf.somatic <- vcf[(floor(normalNV*0.01) >= normalNR), ]
+  return(vcf.somatic)
+}
+
 fileList <- read.table('IBD_vcf_list.txt', header=T,stringsAsFactors = F, sep='\t')
 
 
@@ -33,7 +41,7 @@ vcf <- read.table(fileName, header=T, sep='\t', stringsAsFactors = F)
 vcf.pass <- vcf[vcf$FILTER=='PASS',] #Only with PASS flag
 vcf.singlealt <- vcf.pass[!grepl(',',vcf.pass$ALT),] #Only with single ALT allele
 vcf.filled <- fillNormal(vcf.singlealt, normInd, altnormInd) #Unite normal information in one column
-vcf.somatic <- filterSomatic(vcf.filled, normInd)
+vcf.somatic <- filterSomatic2(vcf.singlealt, normInd)
 
 write.table(vcf.somatic, file=paste0(fileName,'.somatic'), sep='\t', row.names=F, quote=F)
 }
