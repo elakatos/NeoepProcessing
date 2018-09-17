@@ -1,11 +1,11 @@
 
-dir <- '../TCGA_CRC'
-prefix <- 'Total'
+dir <- '../CRCmseq_Set'
+prefix <- 'Set6_WGS'
 epTable <- read.table(paste0(dir, '/Neopred_results/',prefix,'.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
-names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
+names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-24), 'LineID', 'Chrom', 'Start',
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
-                    'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score', 'Affinity', 'Rank', 'Cand', 'BindLevel')
+                    'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score', 'Affinity', 'Rank', 'Cand', 'BindLevel','Novelty')
 #epNon <- epTable[epTable$Novelty==0,]
 #epTable <- epTable[epTable$Novelty!=0,]
 #epTable <- filterByWTBinding(dir, epTable, 'a')
@@ -46,7 +46,7 @@ dev.off()
 
 
 #VAF plotting of selected
-sample = 'Oxford_IBD2.mutectCalls..somatic'
+sample = 'Set.06.WGS.snv'
 sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
 exonic <- readExonicFile(sampleFileEx)
 eps <- subsetEpTable(epTableStrong, sample, unique=T)
@@ -57,8 +57,8 @@ uB<-0.7
 lB<-0.025
 
 i=22+0
-allVafs <- computeVafAD(exonic, i)
-epVafs <- computeVafAD(exonic[isEpMutation,], i)
+allVafs <- computeVaf(exonic, i, 5, 6)
+epVafs <- computeVaf(exonic[isEpMutation,], i, 5, 6)
 nonepVafs <- computeVafAD(exonic[!isEpMutation,], i)
 allVafsF <- allVafs[(allVafs>lB) & (allVafs< uB)]
 epVafsF <- epVafs[(epVafs>lB) & (epVafs < uB)]
@@ -73,6 +73,9 @@ mycols = c('#d0cc9e','#4165d1', '#e13512')
 
 ggplot(nonepDF, aes(x=vaf, y=..scaled..)) + geom_density(fill='grey30',alpha=0.4, adjust=0.8) +
   geom_density(data=epDF, aes(x=vaf, y=..scaled..), alpha=0.4, fill='red', adjust=1)
+
+epvaf <- data.frame(vafs=allVafs, eps = isEpMutation)
+ggplot(epvaf[epvaf$vafs>0,], aes(x=vafs, fill=eps)) + geom_histogram(alpha=0.5, position='identity')
 
 # p1 = ggplot(DF, aes(x=vaf, y=..scaled.., fill = type)) + geom_density(alpha=0.5, adjust=1) +
 #   scale_fill_manual(values=mycols)
@@ -108,19 +111,23 @@ pl <- p1+scale_x_continuous(limits=c(0.02, 0.7)) + scale_y_continuous(breaks=c(0
 print(pl)
 dev.off()
 
-# Entire VAF of CRCmseq samples
+# Entire VAF of CRCmseq samples -------------------------------------------------
 
-vcf <- read.table('~/RNAseq/Neoepitopes/CRCmseq_Set/avready/Set.10.snv.avinput',sep='\t', stringsAsFactors = F)
-names(vcf)[c(1:5, 18:ncol(vcf))] <- c('chr','start','end','ref','alt',getRegionNames(ncol(vcf)-18,T))
+vcf <- read.table('~/CRCdata/CRCmseq_Set/avready/Set.06.WGS.snv.avinput',sep='\t', stringsAsFactors = F)
+names(vcf)[c(1:5, 18:ncol(vcf))] <- c('chr','start','end','ref','alt',getRegionNames(ncol(vcf)-18,F),'Normal')
 
 v <- getRegionNames(ncol(vcf)-18)
 vaf.data <- data.frame(matrix(vector(), ncol=length(v),nrow=nrow(vcf)))
-vaf.data[,1:length(v)] <- sapply(v, function(z) computeVaf(vcf,z))
+vaf.data[,1:length(v)] <- sapply(v, function(z) computeVaf(vcf,z, 5, 6)) #compute vafs with indices defined for NR and NV
 
-ggplot(melt(vaf.data), aes(x=value, fill=variable)) + geom_histogram(alpha=0.6, position='dodge')
-ggplot(vaf.data[vaf.data$X4>(-0)& vaf.data$X4<0.8 ,], aes(x=X4)) + geom_histogram(bins=40) +
+ggplot(melt(vaf.data), aes(x=value, fill=variable)) + geom_histogram(alpha=0.6, position='dodge',bins=50)
+ggplot(vaf.data[vaf.data$X4>(-0)& vaf.data$X4<0.8 ,], aes(x=X4)) + geom_histogram(bins=80) #+
   geom_histogram(data=vaf.data[rowSums(vaf.data==0)==0,], aes(x=X4), fill='red', alpha=0.5,bins=40)
 
+f <- seq(0.4,0.05, by=-1e-3)
+cumvaf <- sapply(f, function(x) sum((vaf.data[,4]*1.25)>x))
+cumvaf.df <- data.frame(invf=1/f, cumvaf=cumvaf)
+ggplot(cumvaf.df, aes(x=invf, y=cumvaf)) + geom_line()
 #ggplot(vaf.data[rowSums(vaf.data==0)==0,], aes(x=X13)) + geom_histogram(bins=30)
 
 # Epitope distribution ----------------------------------------------------
@@ -132,8 +139,36 @@ hist(eps[rowSums(eps[, tumorColumns])==4,]$Rank, breaks=20  )
 epRankClonal <- eps[rowSums(eps[, tumorColumns])==4,]$Rank
 epRankNotClonal <- eps[rowSums(eps[, tumorColumns])<4,]$Rank
 
+#Based on recognition potential
+
+recoTable <- read.table('~/CRCdata/CRCmseq_Set/Neopred_results/PredictedRecognitionPotentials.txt',
+                        stringsAsFactors = F, header=T)
+
+recoTable.imm <- recoTable[recoTable$NeoantigenRecognitionPotential>1e-4,]
+ggplot(subset(recoTable.imm, Sample=='Set.09.Distal.snv' & A<30), aes(x=NeoantigenRecognitionPotential)) + geom_density()
 
 
+epSave <- epTable[,c('Score', 'Sample', 'Rank', 'Affinity')]
+pp <- ggplot(epSave, aes(x=Score, colour=Sample)) + geom_density(adjust=1.2, size=1.1) +guides(col=F) +theme_bw()
+ggplot(subset(recoTable.imm,  A<200), aes(x=NeoantigenRecognitionPotential, colour=Sample)) + geom_density() + scale_x_log10()
+
+eptest <- epTable[epTable$Sample=='Set.09.Proximal.snv',]
+regno <- sum(eptest[1,2:14]!=-1)
+eptest.cl <- eptest[rowSums(eptest[,2:(1+regno)])==regno,]
+eptest.sc <- eptest[rowSums(eptest[,2:(1+regno)])==1,]
+
+ggplot(eptest.sc, aes(x=Score)) + geom_density(col='skyblue4') + geom_density(data=eptest.cl, aes(x=Score), col='darkred') +
+  labs(title=paste0('p = ',ks.test(eptest.sc$Score, eptest.cl$Score)$p.value,'\n(One-sided: p = ',ks.test(eptest.sc$Score, eptest.cl$Score,alternative='less')$p.value,')'))
+
+
+r.cl <- subset(recoTable.imm, Sample==eptest$Sample[1] & (Mutation %in% eptest.cl$Identity))
+r.sc <- subset(recoTable.imm, Sample==eptest$Sample[1] & (Mutation %in% eptest.sc$Identity))
+
+ggplot(r.sc, aes(x=A)) + geom_density(col='skyblue4') + geom_density(data=r.cl, aes(x=A), col='darkred') +
+  labs(title=paste0('p = ',ks.test(r.sc$A, r.cl$A)$p.value,'\n(One-sided: p = ',ks.test(r.sc$A, r.cl$A,alternative='less')$p.value,')'))
+
+
+exonic <- readExonicFile(paste0(dir, '/avannotated/','Set.09.Distal.snv','.avannotated.exonic_variant_function'))
 
 
 # random.dataBA <- read.table('random_proteome_all_BA.txt', sep='\t',row.names=NULL, header=T,stringsAsFactors = F)
@@ -159,6 +194,65 @@ cat(hlasB, sep=' ', file='~/RNAseq/Software/NeoepProcessing/HLA_list.txt', appen
 cat('\n', file='~/RNAseq/Software/NeoepProcessing/HLA_list.txt', append=T)
 cat(hlasC, sep=' ', file='~/RNAseq/Software/NeoepProcessing/HLA_list.txt', append=T)
 
+
+
+
+# Subclonal neo-epitopes and LOH ------------------------------------------
+
+samp <- 'STM003.merged'
+LOHregs <- paste0('Region_', c(3,4,2))
+noLOHregs <- paste0('Region_',c(1))
+
+x <- subset(epTable, Sample == samp)
+noregs <- sum(x[1,2:10]!=-1)
+x.sc <- x[rowSums(x[,2:(2+noregs-1)])==1,]
+eps.sc <- colSums(x.sc[,2:(2+noregs-1)])
+
+eps.sc.LOH <- mean(eps.sc[LOHregs])
+eps.sc.noLOH <- mean(eps.sc[noLOHregs])
+
+loh.subclonalno.df[nrow(loh.subclonalno.df)+1,] <- c(samp, eps.sc.LOH, eps.sc.noLOH,
+                                                     paste0(LOHregs,collapse=','),
+                                                     paste0(noLOHregs,collapse=','))
+
+x.noLOH <- x[(rowSums(x[,noLOHregs,drop=F])>0) & (rowSums(x[,LOHregs,drop=F])==0),]
+x.LOH <- x[(rowSums(x[,noLOHregs,drop=F])==0) & (rowSums(x[,LOHregs,drop=F])>0),]
+t.noLOH <- table(x.noLOH$hla)
+t.LOH <- table(x.LOH$hla)
+
+hla.lost <- 'HLA-B*08:01'
+hla.kept <- 'HLA-B*07:02'
+
+loh.neoeps.df[nrow(loh.neoeps.df)+1,] <- c(samp, substr(hla.lost, 5,5),'LOH',
+                                           t.LOH[hla.lost],t.LOH[hla.kept], sum(t.LOH) )
+loh.neoeps.df[nrow(loh.neoeps.df)+1,] <- c(samp, substr(hla.lost, 5,5),'noLOH',
+                                           t.noLOH[hla.lost],t.noLOH[hla.kept], sum(t.noLOH) )
+
+p1 <- ggpaired(loh.neoeps.df, x='Subclone', y='LostHLARatio', id='Sample', fill='Subclone',
+         line.color = "grey35", line.size = 0.4) + stat_compare_means(paired=T, label.x.npc ='centre') +
+  scale_y_continuous(labels=percent) + scale_fill_manual(values=c('skyblue4', 'firebrick3')) +
+  labs(y='Percentage of subclonal neo-epitopes\n lost allele/ kept allele', x='') + guides(fill=F) + theme_bw()
+p2 <- ggpaired(loh.neoeps.df, x='Subclone', y='LostTotalRatio', id='Sample', fill='Subclone',
+         line.color = "grey35", line.size = 0.4) + stat_compare_means(paired=T, label.x.npc ='centre') +
+  scale_y_continuous(labels=percent) + scale_fill_manual(values=c('skyblue4', 'firebrick3')) +
+  labs(y='Percentage of subclonal neo-epitopes\n lost allele/ total neo-epitopes', x='') + guides(fill=F) + theme_bw()
+p3 <- ggpaired(subset(loh.neoeps.df, Subclone=='LOH'), cond1='BoundToLost', cond2='BoundToKept', fill='condition',
+               line.color = "grey35", line.size = 0.4) + stat_compare_means(paired=T, label.x.npc ='centre') +
+  scale_fill_manual(values=c('skyblue4', 'firebrick3')) +
+  labs(y='Number of neo-epitopes bound to allele\n in subclone with LOH', x='') + guides(fill=F) + theme_bw()
+pb <- ggplot(loh.neoeps.df, aes(x=Subclone, y=LostHLARatio, fill=Subclone)) + geom_bar(stat='identity') + facet_wrap(~paste0(Sample,'_',Allele)) +
+  scale_y_continuous(labels=percent) + scale_fill_manual(values=c('skyblue4', 'firebrick3')) +
+  labs(y='Percentage of subclonal neo-epitopes\n lost allele/ kept allele', x='') + guides(fill=F) + theme_bw()
+
+p0 <- ggpaired(loh.subclonalno.df, cond1='SubclonalEpsLOH', cond2='SubclonalEpsnoLOH', fill='condition',
+               line.color = "grey35", line.size = 0.4) + stat_compare_means(paired=T, label.x.npc ='centre') +
+  scale_fill_manual(values=c('skyblue4', 'firebrick3')) + scale_y_log10() + scale_x_discrete(labels=c("SubclonalEpsnoLOH" = "without LOH", "SubclonalEpsLOH" = "with LOH")) +
+  labs(y='Number of private neo-epitopes in clone', x='') + guides(fill=F) + theme_bw()
+
+
+pdf('~/CRCdata/HLA_LOH/CRCmseq/Neoeps_subclonal_LOH.pdf', width=8, height=6)
+print(p0);print(pb);print(p1);print(p2);print(p3)
+dev.off()
 
 ###########################################################################
 # TCGA analysis -----------------------------------------------------------
@@ -223,3 +317,46 @@ d <- epTable.dedup[epTable.dedup$Sample==samp,]
 d$VAF <- allMutVAFs[match(d$mutID, allMutVAFs$mutID),'VAF']
 ggplot(d, aes(x=Rank, y=VAF)) + geom_point() + scale_y_continuous(limits=c(0, 0.25)) + stat_cor()
 
+
+
+# Compare to shuffled control ---------------------------------------------
+
+realSummary <- read.table('~/CRCdata/TCGA_CRC/Neopred_results/Total.neoantigens.summarytable.txt', header=T, stringsAsFactors = F)
+
+x <- realSummary$Sample[25]
+randomNeoeps <- c()
+for (i in 1:28){
+randomSummary <- read.table(paste0('~/CRCdata/TCGA_CRC/Neopred_results/Shuffled_',i,'.neoantigens.summarytable.txt'), header=T, stringsAsFactors = F)
+if (x %in% randomSummary$Sample){randomNeoeps <- c(randomNeoeps, randomSummary[randomSummary$Sample==x,'Total'])}
+}
+
+compare.df <- data.frame(Random=randomSummary$Total, Real= realSummary[match(randomSummary$Sample, realSummary$Sample),'Total']  )
+
+ggpaired(compare.df, cond1='Random', cond2='Real', fill='condition', line.color='grey70') +
+  stat_compare_means(paired=T) + scale_y_continuous(trans='log1p')
+  
+
+###########################################################################
+# Mutations in normal neoepitopes -----------------------------------------
+
+norm.bed <- read.table(paste0(dir, '/a0201_negative_mutations.bed'), sep='\t', stringsAsFactors = F)
+names(norm.bed) <- c('transcript', 'epStart', 'epEnd', 'protLength', 'file', 'transcript2', 'mutStart', 'mutEnd',
+                     'mutPos', 'mutAll', 'mutCons', 'impact')
+
+patient <- 'TCGA-AZ-4315'
+pat.muts <- subset(norm.bed, file=paste0(patient, '.vep.bed'))
+
+pat.vcf <- read.table(paste0(dir, '/VCF/',patient, '.vcf'), sep='\t', stringsAsFactors = F)
+names(pat.vcf) <- c('CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT', 'NORMAL', 'TUMOUR')
+
+pat.vcf$VAF <- computeVafAD(pat.vcf, 'TUMOUR')
+pat.vcf$MUTID <- apply(pat.vcf, 1, function(z) paste0(z['CHROM'],':',gsub(' ','',z['POS'])))
+pat.vcf.neg <- subset(pat.vcf, MUTID %in% pat.muts$mutPos)
+
+f <- seq(0.75, 0.25, by=-0.01)
+vaf.all <- sapply(f, function(x) sum(pat.vcf$VAF>=x))
+vaf.neg <- sapply(f, function(x) sum(pat.vcf.neg$VAF>=x))
+vaf.df <- data.frame(all=vaf.all, neg=vaf.neg, invf=1/f)
+pa <- ggplot(vaf.df, aes(x=invf, y=vaf.all)) + geom_line()
+pn <- ggplot(vaf.df, aes(x=invf, y=vaf.neg)) + geom_line()
+grid.arrange(pa, pn, nrow=1)

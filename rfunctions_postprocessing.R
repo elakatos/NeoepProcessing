@@ -50,9 +50,9 @@ subsetEpTable <- function(epTable, sample, uniqueMutations=F){
   return(epitopes)
 }
 
-computeVaf <- function(readData, colInd){
+computeVaf <- function(readData, colInd, nrInd, nvInd){
   readInfo <- strsplit(readData[,colInd], ':')
-  vafs <- as.numeric(map(readInfo, 2))/as.numeric(map(readInfo, 1))
+  vafs <- as.numeric(map(readInfo, nvInd))/as.numeric(map(readInfo, nrInd))
   return(vafs)
 }
 

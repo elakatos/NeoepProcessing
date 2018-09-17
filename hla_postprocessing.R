@@ -28,7 +28,7 @@ nnGrep <- function(x){
 #Read in, filter out possibly incorrect predictions and convert to netMHCpan format
 #dir = 'TCGA_CRC'
 #hlas <- read.table(paste0('~/RNAseq/Neoepitopes/',dir,'/hlatypes.txt'), sep='\t', header=T, row.names=1, stringsAsFactors = F)
-hlaFile <- '~/Dropbox/Code/TCGA/hlatypes_total.txt'
+hlaFile <- '~/Dropbox/Code/TCGA/hlatypes_total_CRC.txt'
 
 hlasOrig <- read.table(hlaFile, sep='\t', header=T, row.names=1, stringsAsFactors = F)
 hlasCorrect <- subset(hlasOrig, !( (HLA.A_1=='hla_a_01_01_01_01') & (is.na(HLA.A_2)) & (HLA.B_1== 'hla_b_07_02_01') & (is.na(HLA.B_2)) & (HLA.C_1=='hla_c_01_02_01') & (is.na(HLA.C_2))  ))
@@ -61,6 +61,17 @@ outDir <- '~/Dropbox/Code/TCGA/'
 write.table(hlasOut, paste0(outDir,'hlatypes_',sub(':','', allele),'.txt'), sep='\t', quote=F)
 
 
+# Shuffle HLA haplotypes --------------------------------------------------
+for (i in 31:80){
+hlasShuffled$HLA.A_1 <- sample(hlasShuffled$HLA.A_1)
+hlasShuffled$HLA.A_2 <- sample(hlasShuffled$HLA.A_2)
+hlasShuffled$HLA.B_1 <- sample(hlasShuffled$HLA.B_1)
+hlasShuffled$HLA.B_2 <- sample(hlasShuffled$HLA.B_2)
+hlasShuffled$HLA.C_1 <- sample(hlasShuffled$HLA.C_1)
+hlasShuffled$HLA.C_2 <- sample(hlasShuffled$HLA.C_2)
+hlasOut <- hlasShuffled[sample(1:nrow(hlasShuffled),50),]
+write.table(hlasOut, file=paste0('~/Dropbox/Code/TCGA/hlatypes_total_shuffled_',i,'.txt'), sep='\t', quote=F)
+}
 #####################################################################################
 # LOHHLA analysis ---------------------------------------------------------
 
@@ -120,7 +131,7 @@ analyseLohhla <- function(lohhla.master, clin.df){
 }
 
 
-dir <- '~/CRCdata/HLA_LOH/TCGA_STAD/'
+dir <- '~/CRCdata/HLA_LOH/IBD/Rand_CN/'
 fileList <- list.files(dir, pattern='*.10.DNA.HLAloss*')
 
 lohhla.master <- data.frame(matrix(vector()))
@@ -324,13 +335,13 @@ for (i in 1:nrow(lohhla.master)){
 allele <- paste0('HLA-',toupper(substr(x$HLA_A_type1,5,5)))
 p <- x$PVal_unique
 val <- ifelse(x$PVal_unique<0.01, min(x$HLA_type1copyNum_withBAFBin, x$HLA_type2copyNum_withBAFBin), NA)
-lohhla.df[i,] <- c(r, allele, val, p)
+lohhla.df[i,] <- c(r, allele, val-1.5, p)
 }
 lohhla.df$CopyNumber <- as.numeric(lohhla.df$CopyNumber)
 lohhla.df$p.value <- as.numeric(lohhla.df$p.value)
 lohhla.df <- lohhla.df[order(lohhla.df$Region),]
 
-pLOH <- ggplot(lohhla.df, aes(y=Allele, x=Region, fill=CopyNumber)) + geom_tile() +
+pLOH <- ggplot(lohhla.df, aes(y=Region, x=Allele, fill=CopyNumber)) + geom_tile() +
   scale_fill_gradientn(colours=c('red4', 'red4', 'red4', 'red4', 'brown3', 'mistyrose2', 'bisque', 'cornsilk3'), limits=c(-2.5, 2), na.value='grey70') +
   theme_bw()
 

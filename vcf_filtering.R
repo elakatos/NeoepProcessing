@@ -24,24 +24,26 @@ filterSomatic2 <- function(vcf, normInd){
   normalNV <- sapply(vcf[,normInd], function(x) as.numeric(tail(unlist(strsplit(x, ':')),1)))
   normalNR <- sapply(vcf[,normInd], function(x) as.numeric(tail(unlist(strsplit(x, ':')),2)[1]))
   
-  vcf.somatic <- vcf[(floor(normalNV*0.01) >= normalNR), ]
+  vcf.somatic <- vcf[(normalNV<1 & normalNR>9 & normalNR<30) | (normalNV<2 & normalNR>29) | (normalNV<3 & normalNR>99), ]
   return(vcf.somatic)
 }
 
 fileList <- read.table('IBD_vcf_list.txt', header=T,stringsAsFactors = F, sep='\t')
 
 
-for (i in 1:(nrow(fileList))){
-altnormInd <- as.numeric(unlist(strsplit(fileList[i,,drop=F]$altnormInd,',')))
-fileName <- fileList[i,,drop=F]$Sample
-print(fileName)
 
-vcf <- read.table(fileName, header=T, sep='\t', stringsAsFactors = F)
+for (fileName in fileList){
+  print(fileName)
+vcf <- read.table(fileName, header=F, sep='\t', stringsAsFactors = F)
+names(vcf)[1:9] <- c('CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT')
 
-vcf.pass <- vcf[vcf$FILTER=='PASS',] #Only with PASS flag
+
+vcf.pass <- vcf[vcf$FILTER %in% c('PASS', 'alleleBias', 'HapScore', 'SC', 'badReads', 'SC;alleleBias', 'HapScore;alleleBias', 'HapScore;SC'),] #Only with PASS flag
 vcf.singlealt <- vcf.pass[!grepl(',',vcf.pass$ALT),] #Only with single ALT allele
-vcf.filled <- fillNormal(vcf.singlealt, normInd, altnormInd) #Unite normal information in one column
-vcf.somatic <- filterSomatic2(vcf.singlealt, normInd)
+#vcf.filled <- fillNormal(vcf.singlealt, normInd, altnormInd) #Unite normal information in one column
+vcf.somatic <- filterSomatic2(vcf.singlealt, 'NORMAL')
+print(dim(vcf.somatic))
 
-write.table(vcf.somatic, file=paste0(fileName,'.somatic'), sep='\t', row.names=F, quote=F)
+cat(c('#'), file=fileName)
+write.table(vcf.somatic, file=fileName, sep='\t', row.names=F, quote=F, append=T)
 }
