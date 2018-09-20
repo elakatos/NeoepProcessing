@@ -290,6 +290,11 @@ recoTable.imm <- subset(recoTable, NeoantigenRecognitionPotential>1e-4)
 
 epTable.imm <- subset(epTable, AntigenID %in% recoTable.imm$AntigenID)
 
+recoTable.sorted <- recoTable.imm[order(-recoTable.imm$NeoantigenRecognitionPotential),]
+recoTable.pat1 <- recoTable.sorted[!duplicated(recoTable.sorted$Sample),]
+
+ggplot(recoTable.pat1, aes(x=NeoantigenRecognitionPotential)) +geom_histogram(bins=40)
+
 ############################################################################
 # Add expression ----------------------------------------------------------
 
