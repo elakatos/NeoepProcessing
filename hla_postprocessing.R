@@ -82,12 +82,12 @@ labelHLAAI <- function(line){
   if (line$PVal_unique<0.01){lab <- 'AI'}
   if ((line$HLA_type1copyNum_withBAFBin_lower>1.5) & (line$HLA_type2copyNum_withBAFBin_lower > 1.5 ))
   { lab <- 'gain'}
-  if ( (lab=='AI') & (line$HLA_type1copyNum_withBAFBin_upper< 0.6) & (line$HLA_type1copyNum_withBAFBin < 0.35 ))
+  if ( (lab=='AI') & (line$HLA_type1copyNum_withBAFBin_upper< 0.7) & (line$HLA_type1copyNum_withBAFBin < 0.5 ))
   { lab <- 'LOH'}
-  if ((lab=='AI') & (line$HLA_type2copyNum_withBAFBin < 0.35) & (line$HLA_type2copyNum_withBAFBin_upper < 0.6 ))
+  if ((lab=='AI') & (line$HLA_type2copyNum_withBAFBin < 0.5) & (line$HLA_type2copyNum_withBAFBin_upper < 0.7 ))
   { lab <- 'LOH'}
-  if ((lab %in% c('AI','LOH')) & (line$HLA_type1copyNum_withBAFBin_upper<0.5) & (line$HLA_type2copyNum_withBAFBin_upper <0.5 ))
-  { lab <- 'loss'}
+  #if ((lab %in% c('AI','LOH')) & (line$HLA_type1copyNum_withBAFBin_upper<0.5) & (line$HLA_type2copyNum_withBAFBin_upper <0.5 ))
+  #{ lab <- 'loss'}
   return(lab)
 }
 
@@ -154,9 +154,9 @@ for (sampleName in fileList){
 
 lohhla.master$QVal <- p.adjust(lohhla.master$PVal_unique, method='fdr')
 lohhla.master$Label <- sapply(1:nrow(lohhla.master), function(i) labelHLAAI(lohhla.master[i,]))
-lohhla.master$Rel <- sapply(1:nrow(lohhla.master), function(i) labelHLArel(lohhla.master[i,], 30))
+lohhla.master$Rel <- sapply(1:nrow(lohhla.master), function(i) labelHLArel(lohhla.master[i,], 5))
 
-lohhla.master <- read.table('~/Dropbox/Code/TCGA/CRC_LOHHLA_master_file.txt', stringsAsFactors = F)
+lohhla.master <- read.table('~/Dropbox/Code/TCGA/CRC_LOHHLA_master_file.txt', stringsAsFactors = F, header=T)
 # Filtered version: filter on the master table level
 
 lohhla.master <- subset(lohhla.master, Rel==T)
@@ -360,7 +360,66 @@ for (i in 1:nrow(head(muthla.signif))){
 
 
 
+# Escape table ------------------------------------------------------------
 
+lohhla.master$region <- gsub('.tumour', '', lohhla.master$region)
+lohhla.ai <- subset(lohhla.master, PVal_unique<0.01)
+lohhla.loh <- subset(lohhla.ai, Label=='LOH')
+
+for (pat in unique(lohhla.ai$region)){ escape.df[escape.df$Patient==pat, 'AI'] <- paste0(lohhla.ai[lohhla.ai$region==pat,'LossAllele'], collapse=',') }
+
+for (pat in unique(lohhla.loh$region)){ escape.df[escape.df$Patient==pat, 'HLA_LOH'] <- paste0(lohhla.loh[lohhla.loh$region==pat,'LossAllele'], collapse=',') }
+
+for (pat in unique(muthla.signif$individual)){ escape.df[escape.df$Patient==pat, 'HLA_MUT'] <- paste0(muthla.signif[muthla.signif$individual==pat,'contig'], collapse=',') }
+
+escape.df$B2M_MUT <- clin.df[match(escape.df$Patient, clin.df$Patient), 'B2M']
+escape.df$PDL1 <- exprpdl[match(gsub('-', '.',escape.df$Patient), names(exprpdl))] > mean(exprpdl.norm)+2*sd(exprpdl.norm)
+escape.df$CTLA4 <- exprctla[match(gsub('-', '.',escape.df$Patient), names(exprctla))] > mean(exprctla.norm)+2*sd(exprctla.norm)
+escape.df$CYT <- cyts[match(gsub('-', '.',escape.df$Patient), names(cyts))]
+escape.df$MSI <- clin.df[match(escape.df$Patient, clin.df$Patient), 'MSI']
+
+escape.df <- read.table('~/Dropbox/Code/TCGA/CRC_escape_master_file.txt',stringsAsFactors = F, sep='\t', header=T)
+escape.df <- escape.df[!is.na(escape.df$PDL1),]
+escape.df$Escape <- NA
+escape.df[ (is.na(escape.df$HLA_LOH) & !is.na(escape.df$HLA_MUT) & escape.df$B2M_MUT==0 & !escape.df$PDL1 & !escape.df$CTLA4), 'Escape' ] <- 'HLA_MUT'
+escape.df[ (is.na(escape.df$HLA_LOH) & is.na(escape.df$HLA_MUT) & escape.df$B2M_MUT==0 & (escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'CHECKPOINT'
+escape.df[ (!is.na(escape.df$HLA_LOH) & is.na(escape.df$HLA_MUT) & escape.df$B2M_MUT==0 & !(escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'HLA_LOH'
+escape.df[ (is.na(escape.df$HLA_LOH) & is.na(escape.df$HLA_MUT) & escape.df$B2M_MUT>0 & !escape.df$PDL1 & !escape.df$CTLA4), 'Escape' ] <- 'B2M_MUT'
+escape.df[ ((is.na(escape.df$HLA_LOH)) & is.na(escape.df$HLA_MUT) & (escape.df$B2M_MUT>0) & (escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'CHECKPOINT_&_B2M'
+escape.df[ (!(is.na(escape.df$HLA_LOH)) & is.na(escape.df$HLA_MUT) & (escape.df$B2M_MUT==0) & (escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'CHECKPOINT_&_LOH'
+escape.df[ ((is.na(escape.df$HLA_LOH)) & !is.na(escape.df$HLA_MUT) & (escape.df$B2M_MUT==0) & (escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'CHECKPOINT_&_HLAMUT'
+escape.df[ ((!is.na(escape.df$HLA_LOH)) + (!is.na(escape.df$HLA_MUT)) + (escape.df$B2M_MUT>0) + (escape.df$PDL1 | escape.df$CTLA4))>2, 'Escape' ] <- 'COMBINATION'
+escape.df[is.na(escape.df$Escape) & !(is.na(escape.df$AI)),'Escape'] <- 'AI'
+escape.df[is.na(escape.df$Escape),'Escape'] <- 'NONE'
+
+escape.df.msi <- subset(escape.df, MSI=='MSI-H')
+escape.df.mss <- subset(escape.df, MSI=='MSI-L')
+escape.df.pole <- subset(escape.df, MSI=='POLE')
+
+pesc1 <- ggplot(data.frame(value=as.numeric(table(escape.df.mss$Escape)),var=names(table(escape.df.mss$Escape))), aes(x='', y=value ,fill=var)) +
+  geom_bar(stat='identity') +
+  coord_polar('y', start=0) +
+  scale_fill_manual(values=c('#dcc8c8', '#966a9f', '#d87600',
+                     '#fee08b', '#ffffbf','#fdae61', '#abdda4', '#d53e4f', '#3288bd', 'grey80')) +
+  labs(fill='Escape mechanism', x='', y='', title='MSS tumours (n=440)') + 
+  theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=14))
+
+pesc2 <- ggplot(data.frame(value=as.numeric(table(escape.df.msi$Escape)),var=names(table(escape.df.msi$Escape))), aes(x='', y=value ,fill=var)) +
+  geom_bar(stat='identity') +
+  coord_polar('y', start=0) +
+  scale_fill_manual(values=c('#dcc8c8', '#966a9f', '#d87600',
+                             '#fee08b', '#ffffbf','#fdae61', '#abdda4', '#d53e4f', '#3288bd', 'grey80')) +
+  labs(fill='Escape mechanism', x='', y='', title='MSI tumours (n=62)') + 
+  theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=14))
+
+
+pesc3 <- ggplot(data.frame(value=as.numeric(table(escape.df.pole$Escape)),var=names(table(escape.df.pole$Escape))), aes(x='', y=value ,fill=var)) +
+  geom_bar(stat='identity') +
+  coord_polar('y', start=0) +
+  scale_fill_manual(values=c('#dcc8c8', '#d87600',
+                             '#fee08b', '#ffffbf', '#abdda4', '#d53e4f', '#3288bd', 'grey80')) +
+  labs(fill='Escape mechanism', x='', y='', title='POLE tumours (n=11)') + 
+  theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=14))
 
 
 ######################################################################################
@@ -374,6 +433,7 @@ tcga.normal.tpm <- read.table('~/Dropbox/Code/TCGA/Normal_colon_samples.tpm', st
 gzma <- 'ENSG00000145649'
 prf <- 'ENSG00000180644'
 pdl <- 'ENSG00000120217'
+ctla <- 'ENSG00000163599'
 exprcyt <- log10(tcga.tpm[c(gzma, prf),]+1)
 cyts <- apply(exprcyt, 2, function(x) sqrt(x[1]*x[2]))
 ggplot(data.frame(value=cyts), aes(x=value)) + geom_density()
@@ -381,11 +441,35 @@ ggplot(data.frame(value=cyts), aes(x=value)) + geom_density()
 exprpdl <- sapply(tcga.tpm[pdl,], function(x) log10(x+1))
 
 exprpdl.norm <- sapply(tcga.normal.tpm[pdl,], function(x) log10(x+1))
+exprpdl.norm <- exprpdl.norm[exprpdl.norm<0.9] #get rid of clear outlier
 ggplot(data.frame(value=exprpdl), aes(x=value)) + geom_density(colour='firebrick3') +
   geom_density(data=data.frame(value=exprpdl.norm), aes(x=value)) +
   geom_vline(xintercept=(mean(exprpdl.norm)+2*sd(exprpdl.norm)))
 
 pdl.over <- names(exprpdl)[exprpdl > (mean(exprpdl.norm)+2*sd(exprpdl.norm))]
+
+exprctla <- sapply(tcga.tpm[ctla,], function(x) log10(x+1))
+exprctla.norm <- sapply(tcga.normal.tpm[ctla,], function(x) log10(x+1))
+ggplot(data.frame(value=exprctla), aes(x=value)) + geom_density(colour='firebrick3') +
+  geom_density(data=data.frame(value=exprctla.norm), aes(x=value)) +
+  geom_vline(xintercept=(mean(exprctla.norm)+2*sd(exprctla.norm)))
+
+ctla.over <- names(exprctla)[exprctla > (mean(exprctla.norm)+2*sd(exprctla.norm))]
+
+#CTLA vs PDL
+ggplot(data.frame(c=exprctla,p=exprpdl), aes(x=p, y=c)) + geom_point() +
+  geom_hline(yintercept=(mean(exprctla.norm)+2*sd(exprctla.norm))) +
+  geom_vline(xintercept=(mean(exprpdl.norm)+2*sd(exprpdl.norm)))
+
+#All and CYT
+totexpr <- data.frame(p=exprpdl, c=cyts, c4=exprctla,
+                      MSI=clin.df[match(gsub('\\.', '-', names(exprpdl)), clin.df$Patient),'MSI'])
+ggplot(totexpr[totexpr$MSI %in% c('MSI-H', 'MSI-L'),], aes(x=c, y=p, colour=MSI)) +
+  geom_point(size=2) + stat_cor(mapping = aes(x=c,y=p,colour='')) +
+  scale_color_manual(values=c('black', 'darkorange3', 'darkseagreen4')) + theme_bw() +
+  guides(colour=F) + labs(x='CYT score (logTPM)', y='PD-L1 expression (logTPM)') +
+  theme(text=element_text(size=16))
+
 
 lohhla.patients$CYT <- cyts[match(gsub('-','.',lohhla.patients$ID), names(cyts))]
 ggplot(na.omit(lohhla.patients), aes(x=MSI, y=CYT, fill=MSI)) + geom_violin() +
@@ -393,6 +477,12 @@ ggplot(na.omit(lohhla.patients), aes(x=MSI, y=CYT, fill=MSI)) + geom_violin() +
 
 lohhla.patients$PDL <- exprpdl[match(gsub('-','.',lohhla.patients$ID), names(exprpdl))]
 ggplot(na.omit(lohhla.patients), aes(x=MSI, y=PDL, fill=MSI)) + geom_violin() +
+  scale_y_continuous(trans='log10') + stat_compare_means()
+lohhla.patients$CTLA <- exprpdl[match(gsub('-','.',lohhla.patients$ID), names(exprpdl))]
+ggplot(na.omit(lohhla.patients), aes(x=MSI, y=CTLA, fill=MSI)) + geom_violin() +
+  scale_y_continuous(trans='log10') + stat_compare_means()
+lohhla.patients.mss <- subset(lohhla.patients, HYP==F)
+ggplot(na.omit(lohhla.patients.mss), aes(x=LOH, y=PDL, fill=LOH)) + geom_violin() +
   scale_y_continuous(trans='log10') + stat_compare_means()
 
 lohhla.patients.mss <- subset(lohhla.patients, HYP==F)
@@ -424,3 +514,13 @@ case <- 'TCGA-CK-4951'
 lohhla.master[lohhla.master$region==paste0(case,'.tumour'),]
 clin.df[clin.df$Patient==case,]
 if(case %in% muthla.master$individual){print(muthla.master[muthla.master$individual==case,])}
+
+
+###########################################################################
+# Paper figures -----------------------------------------------------------
+
+pcrcexpr <- ggplot(totexpr[totexpr$MSI %in% c('MSI-H', 'MSI-L'),], aes(x=c, y=p, colour=MSI)) +
+  geom_point(size=2) + stat_cor(mapping = aes(x=c,y=p,colour='')) +
+  scale_color_manual(values=c('black', 'darkorange3', 'darkseagreen4')) + theme_bw() +
+  guides(colour=F) + labs(x='CYT score (logTPM)', y='PD-L1 expression (logTPM)') +
+  theme(text=element_text(size=16))

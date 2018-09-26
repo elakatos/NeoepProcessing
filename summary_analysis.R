@@ -9,36 +9,42 @@ cor.test(summaryTable$Shared/summaryTable$Total, log(summaryTable$Total))
 
 setwd('~/CRCdata')
 
-analysisPostfix <- 'WTallfilteredStrong'
+analysisPostfix <- 'all'
 
 mutRatiosBatch = list()
 mutRatioTable = data.frame(matrix(vector(), ncol=6))
 names(mutRatioTable) <- c('Clonal_All', 'Clonal_Ep','Private_All','Private_Ep','Shared_All', 'Shared_Ep')
 
-dirList <- c('CRCmseq_Polyp', 'CRCmseq_Set')
+dirList <- c('CRCmseq_Polyp', 'CRCmseq_Ha','CRCmseq_Set')
 #dirList <- c('IBD')
 prefix <- 'Output_BA'
 
 for (dir in dirList){
   
-  pdf(paste0(dir, '_summary_',analysisPostfix,'.pdf'), height = 5, width=8)
+  #pdf(paste0(dir, '_summary_',analysisPostfix,'.pdf'), height = 5, width=8)
   epTable <- read.table(paste0(dir, '/Neopred_results/',prefix,'.neoantigens.txt'), header=F,
                         sep = '\t',stringsAsFactors = F, fill=T)
   names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-24), 'LineID', 'Chrom', 'Start',
                       'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
                       'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score','Affinity', 'Rank', 'Cand', 'BindLevel', 'Novelty')
   epTable <- epTable[epTable$Novelty!=0,]
-  #epTable <- epTable[epTable$Sample!='Set.10.recalled.snv',] #to disregard the replication of Set10
+  epTable <- epTable[!(epTable$Sample %in% c('Set.10.recalled.snv', 'Set.10.snv', 'Set.01.snv')),] #to disregard the replication of Set10
   
   #Filter epTable according to WT or alternative binding prediction
   #epTable <- filterByBAPrediction(dir, epTable)
   #epTable <- filterByWTBinding(dir, epTable, 'all')
   #epTable <- epTable[epTable$BindLevel=='SB',]
+  recoTable <- read.table(paste0(dir, '/Neopred_results/PredictedRecognitionPotentials.txt'),
+                          sep='\t', stringsAsFactors = F, header=T)
+  recoTable$AntigenID <- apply(recoTable, 1,function(x) paste0(x['Sample'], ':',x['Mutation'], ':',x['MutantPeptide'] ) )
+  epTable$AntigenID <- apply(epTable, 1,function(x) paste0(x['Sample'], ':',x['Identity'], ':',x['peptide'] ) )
+  recoTable.imm <- subset(recoTable, NeoantigenRecognitionPotential>1e-4)
+  epTable <- subset(epTable, AntigenID %in% recoTable.imm$AntigenID)
   
   summaryTable <- processSummaryOfSampleSet(dir, epTable, prefix)
   mutRatioTable <- getMutationRatios(dir, epTable, mutRatioTable)
   mutRatiosBatch[dir] <- list(summaryTable$Total/summaryTable$Total_MUT)
-  dev.off()
+  #dev.off()
 }
 
 
@@ -46,13 +52,20 @@ for (dir in dirList){
 
 random.data <- read.table('random_proteome_all.txt', sep='\t',row.names=NULL, header=T,stringsAsFactors = F)
 random.data <- subset(random.data, !((nchar(random.data$peptide)==9) &  (random.data$peptide_pos) %in% c(1,11)) )
-random.data <- subset(random.data, Novelty==1)
+#random.data <- subset(random.data, Novelty==1)
 random.data$Sample <- random.data$PatIndex
 random.data.filtered <- subset(random.data, BindLevel!='N')
 
+random.data.filtered$AntigenID <- apply(random.data.filtered, 1,function(x) paste0(x['Sample'], ':',x['Identity'], ':',x['peptide'] ) )
+
+random.recopo <- read.table('random.PredictedRecognitionPotentials.txt', sep='\t', header=T, stringsAsFactors = F)
+random.recopo$AntigenID <- apply(random.recopo, 1,function(x) paste0(x['Sample'], ':',x['Mutation'], ':',x['MutantPeptide'] ) )
+random.recopo.imm <- subset(random.recopo, NeoantigenRecognitionPotential>1e-4)
+random.data.filtered <- subset(random.data.filtered, AntigenID %in% random.recopo.imm$AntigenID)
+
 #Filter according to WT or other binding information
-random.data.filtered <- filterRandomByWTBinding(random.data.filtered, 'a')
-random.data.filtered <- random.data.filtered[random.data.filtered$BindLevel=='SB',]
+#random.data.filtered <- filterRandomByWTBinding(random.data.filtered, 'a')
+#random.data.filtered <- random.data.filtered[random.data.filtered$BindLevel=='SB',]
 
 random.summary <- processSummaryOfRandomSet(random.data, random.data.filtered)
 
@@ -65,6 +78,12 @@ mutRatioTable$Subclonal_Ratio <- (mutRatioTable$Private_Ep+mutRatioTable$Shared_
 mutRatioTable[mutRatioTable$Private_Ep<10,'Private_Ratio'] <- NA
 
 # Analyse Polyp, Set and Random -------------------------------------------
+
+mr.df <- data.frame(x=unlist(mutRatiosBatch), var=c(rep('Adenoma',8), rep('Carcinoma',9),
+                                                    rep('Random', 50)))
+ggplot(mr.df, aes(x=var, y=x, fill=var)) + geom_violin() +
+  geom_boxplot(width=0.05, fill='grey80') +
+  stat_compare_means(comparisons=list(c('Adenoma', 'Carcinoma'), c('Adenoma', 'Random'), c('Carcinoma', 'Random')))
 
 #are the mutation ratios normally distributed?
 ggqqplot(mutRatiosBatch[[2]])
@@ -110,7 +129,7 @@ dev.off()
 
 # TCGA sample -------------------------------------------------------------
 
-dir = '../TCGA_CRC'
+dir = 'TCGA_CRC'
 prefix='Total'
 #pdf(paste0(dir, '_summary.pdf'), height = 5, width=8)
 epTable <- read.table(paste0(dir, '/Neopred_results/',prefix,'.neoantigens.txt'), header=F,
@@ -139,7 +158,7 @@ summaryTable$Stage <- gsub('[abc]', '', clin.df[match(row.names(summaryTable), c
 summaryTable[summaryTable=='not reported'] <- NA
 
 summaryTable$LOH <- lohhla.patients[match(row.names(summaryTable), lohhla.patients$ID), 'LOH']
-summaryTable$MUT <- lohhla.patients[match(row.names(summaryTable), lohhla.patients$ID), 'MUT']
+summaryTable$MUT <- sapply(row.names(summaryTable), function(x) x %in% muthla.signif$individual)
 summaryTable$PDL <- lohhla.patients[match(row.names(summaryTable), lohhla.patients$ID), 'PDL']
 summaryTable$CYT <- lohhla.patients[match(row.names(summaryTable), lohhla.patients$ID), 'CYT']
 
@@ -150,7 +169,7 @@ summaryTable$IP <- immTable[match(row.names(summaryTable), immTable$sampleID), '
 
 # Compare neoep-mutation ratio in MSI and MSS
 summaryTable.sub <- subset(summaryTable, MSI != 'POLE')
-summaryTable.sub <- subset(summaryTable.sub, Total_MUT > 70)
+summaryTable.sub <- subset(summaryTable.sub, Total_MUT > 30)
 mlab <- 'All non-POLE tumours'
 ylb <- 'RATIO of neo-epitope associated mutations'
 
@@ -166,13 +185,13 @@ ylb <- 'TOTAL neo-epitopes'
 summaryTable.sub$MutRatio <- summaryTable.sub$Total_MUT
 ylb <- 'TOTAL somatic missense mutations'
 
-p0 <- ggplot(summaryTable.sub, aes(x=Total_MUT, y=MutRatio, colour=as.factor(Hyp))) + geom_point() + scale_x_continuous(trans='log10') +
-  stat_cor(label.x.npc = 'centre') + stat_cor(mapping=aes(x=Total_MUT,y=MutRatio,colour=Hyp),label.x.npc='centre', label.y.npc='bottom') +
-  scale_color_manual(values=c(rgb(0.2,0.35,0.45), rgb(0.35,0.55,0.8))) +
-  labs(colour='Hypermutated', x='Total somatic missense mutations', y=ylb)
+p0 <- ggplot(summaryTable.sub, aes(x=Total_MUT, y=MutRatio, colour=as.factor(Hyp))) + geom_point(size=2) + scale_x_continuous(trans='log10') +
+  stat_cor(label.x.npc = 'centre', size=5) + stat_cor(mapping=aes(x=Total_MUT,y=MutRatio,colour=''),label.x.npc='centre', label.y.npc='bottom', size=5) +
+  scale_color_manual(values=c('black','darkseagreen4', 'darkorange3')) +
+  labs(colour='Hypermutated', x='Total somatic missense mutations', y=ylb) + theme_bw() + guides(color=F)
 p1 <- ggplot(summaryTable.sub, aes(x=MSI, y=MutRatio, fill=as.factor(MSI))) + geom_violin() +
-stat_compare_means(comparisons = list(c('MSI-H', 'MSI-L'))) +
-  guides(fill=F) + labs(y=ylb, title=mlab)
+  stat_compare_means(comparisons = list(c('MSI-H', 'MSI-L')), aes(label = paste0("p = ", ..p.format..))) +
+  guides(fill=F) + labs(y=ylb, title=mlab) + theme_bw() + scale_fill_manual(values=c('darkorange3', 'darkseagreen4'))
 p2 <- ggplot(summaryTable.sub, aes(x=Hyp, y=MutRatio, fill=as.factor(Hyp))) + geom_violin() +
   stat_compare_means(comparisons = list(c(1,0))) +
   guides(fill=F) + labs(y=ylb, x='Hypermutated', title=mlab)
@@ -195,8 +214,8 @@ p7 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$Stage),], aes(x=Stage, y=M
 #summaryTable.sub$Age <- cut(summaryTable.sub$Age, quantile(summaryTable.sub$Age, na.rm=T))
 #p8 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$Age),], aes(x=Age, y=MutRatio, fill=as.factor(Age))) + geom_violin() +
 #  guides(fill=F) + labs(y=ylb,title=mlab)
-p8 <- ggplot(summaryTable.sub, aes(x=Age, y=MutRatio, colour=-Age)) + geom_point() + stat_cor() +
-  guides(colour=F) + labs(y=ylb,title=mlab)
+p8 <- ggplot(summaryTable.sub, aes(x=Age, y=MutRatio, colour=MSI)) + geom_point(size=2) + stat_cor(mapping=aes(x=Age,y=MutRatio,colour=Age),size=5) +
+  guides(colour=F) + labs(y=ylb,title=mlab) + theme_bw() + scale_color_manual(values=c('darkseagreen4', 'darkorange3'))
 p9 <- ggplot(summaryTable.sub[!is.na(summaryTable.sub$Race),], aes(x=Race, y=MutRatio, fill=Race)) + geom_violin() +
   stat_compare_means(comparisons = list(c('black or african american','white'), c('black or african american','asian'), c('asian','white'))) +
   guides(fill=F) + labs(y=ylb,title=mlab)
@@ -216,18 +235,46 @@ p42 <- ggplot(summaryTable.sub2[!is.na(summaryTable.sub2$MUT),], aes(x=MUT, y=Mu
   stat_compare_means(comparisons = list(c('TRUE','FALSE'))) +
   guides(fill=F) + labs(y=ylb, x='Mutated in HLA', title='MSI tumours without LOH')
 
+# summaryTable.sub2 <- subset(summaryTable.sub, !MUT & (MSI=='MSI-H'))
+# p43 <- ggplot(summaryTable.sub2[!is.na(summaryTable.sub2$LOH),], aes(x=LOH, y=MutRatio, fill=LOH)) + geom_violin() +
+#   stat_compare_means(comparisons = list(c('TRUE','FALSE'))) +
+#   guides(fill=F) + labs(y=ylb, x='LOH in HLA', title='MSI tumours')
+
 summaryTable.sub2 <- subset(summaryTable.sub, (MSI == 'MSI-L'))
 p52 <- ggplot(summaryTable.sub2[!is.na(summaryTable.sub2$LOH),], aes(x=LOH, y=MutRatio, fill=LOH)) + geom_violin() +
   stat_compare_means(comparisons = list(c('TRUE','FALSE'))) +
   guides(fill=F) + labs(y=ylb, x='LOH in HLA', title='MSS tumours')
 
 
-pdf('~/Dropbox/Code/TCGA/Figures/Mutratio_filtered_recoexpressed_stats.pdf', width=6.5, height=5)
-print(p0); print(p1); print(p2); print(p3); print(p4); print(p5);print(p6); print(p7); print(p9); print(p10);print(p11); print(p8); print(p42); print(p52)
+pdf('~/Dropbox/Code/TCGA/Figures/Mutratio_recopo_stats_STAD.pdf', width=6.5, height=5)
+print(p0); print(p1); print(p2); print(p3); print(p4); print(p5);#print(p12); print(p13);
+print(p6); print(p7); print(p9); #print(p10);print(p11);
+print(p8); print(p42); print(p52)
 
 #print(p0+scale_y_log10());print(p1+scale_y_log10());  print(p2+scale_y_log10());  print(p3+scale_y_log10());  print(p4+scale_y_log10());  print(p5+scale_y_log10());print(p12+scale_y_log10());print(p13+scale_y_log10());  print(p6+scale_y_log10());  print(p7+scale_y_log10());  print(p9+scale_y_log10()); print(p10+scale_y_log10()); print(p11+scale_y_log10());print(p8+scale_y_log10());  print(p42+scale_y_log10());  print(p52+scale_y_log10());
 dev.off()
 
+
+pcrcrat <- p1 + geom_boxplot(width=0.05, fill='grey80') + labs(y='Relative neoantigen burden', title='',x='') +
+  theme(text=element_text(size=16))
+
+pcrcage1 <- ggplot(summaryTable.sub, aes(x=Age, y=MutRatio, colour=MSI)) + geom_point(size=2) + stat_cor(mapping=aes(x=Age,y=MutRatio,colour=Age),size=5) +
+  guides(colour=F) + labs(y='Relative neoantigen burden') + theme_bw() + scale_color_manual(values=c('darkorange3','darkseagreen4')) +
+  scale_y_continuous(limits=c(0.0,0.25)) + scale_x_continuous(breaks=c(30,60,90)) +
+  theme(text=element_text(size=16))
+
+pcrcage2 <- ggplot(summaryTable.sub, aes(x=Age, y=Neoep, colour=MSI)) + geom_point(size=2) + stat_cor(mapping=aes(x=Age,y=Neoep,colour=Age),size=5) +
+  guides(colour=F) + labs(y='Total neoantigen burden') + theme_bw() + scale_color_manual(values=c('darkorange3','darkseagreen4')) +
+  scale_y_log10(breaks=c(100,1000)) + scale_x_continuous(breaks=c(30,60,90)) +
+  theme(text=element_text(size=16))
+
+pcrcage3 <- ggplot(summaryTable.sub, aes(x=Age, y=Total_MUT, colour=MSI)) + geom_point(size=2) + stat_cor(mapping=aes(x=Age,y=Total_MUT,colour=Age),size=5) +
+  guides(colour=F) + labs(y='Total missense mutation burden') + theme_bw() + scale_color_manual(values=c('darkorange3','darkseagreen4')) +
+  scale_y_log10(breaks=c(100,1000)) + scale_x_continuous(breaks=c(30,60,90)) +
+  theme(text=element_text(size=16))
+
+pstadrat <- p1 + geom_boxplot(width=0.05, fill='grey80') + labs(y='Relative neoantigen burden', title='',x='') +
+  theme(text=element_text(size=16))
 
 #Lowest/highest mutation ratios?
 
@@ -281,7 +328,7 @@ mutCompare.signif <- subset(mutCompare, All>25)
 epTable$AntigenID <- apply(epTable, 1,function(x) paste0(x['Sample'], ':',x['Identity'], ':',x['peptide'] ) )
 
 
-recoTable <- read.table('~/CRCdata/TCGA_CRC/Neopred_results/PredictedRecognitionPotentials.txt',
+recoTable <- read.table('~/RNAseq/Neoepitopes/TCGA_CRC/Neopred_results/PredictedRecognitionPotentials.txt',
                         stringsAsFactors = F, header=T)
 
 recoTable$AntigenID <- apply(recoTable, 1,function(x) paste0(x['Sample'], ':',x['Mutation'], ':',x['MutantPeptide'] ) )

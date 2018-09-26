@@ -1,4 +1,30 @@
 
+
+# Get Random tables -------------------------------------------------------
+
+random.data <- read.table('random_proteome_all.txt', sep='\t',row.names=NULL, header=T,stringsAsFactors = F)
+random.data.wt <- read.table('random_wt_proteome_all.txt', sep='\t',row.names=NULL, header=T,stringsAsFactors = F)
+
+to.exclude <- ((nchar(random.data$peptide)==9) &  (random.data$peptide_pos) %in% c(1,11))
+random.data <- random.data[!to.exclude,]
+random.data.wt <- random.data.wt[!to.exclude,]
+
+no.binder <- random.data$Affinity > 500
+random.data <- random.data[!no.binder,]
+random.data.wt <- random.data.wt[!no.binder,]
+
+mutandwt.df <- data.frame(ID=1:nrow(random.data), MUTATION_ID=random.data$Identity,
+                          Sample=random.data$PatIndex,
+                          WT.PEPTIDE=random.data.wt$peptide, MT.PEPTIDE=random.data$peptide,
+                          MT.ALLELE=random.data$hla,
+                          WT.SCORE=random.data.wt$Affinity, MT.SCORE=random.data$Affinity,
+                          HLA='hla', CHOP_SCORE=1)
+
+write.table(mutandwt.df,file='~/RNAseq/Neoepitopes/random.Neoantigens.WTandMTtable.txt', quote=F, row.names=F, sep='\t')
+
+# VAF ---------------------------------------------------------------------
+
+
 dir <- '../CRCmseq_Set'
 prefix <- 'Set6_WGS'
 epTable <- read.table(paste0(dir, '/Neopred_results/',prefix,'.neoantigens.txt'), header=F,
@@ -257,7 +283,7 @@ dev.off()
 ###########################################################################
 # TCGA analysis -----------------------------------------------------------
 
-dir <- '../TCGA_CRC'
+dir <- 'TCGA_CRC'
 prefix <- 'Total'
 epTable <- read.table(paste0(dir, '/Neopred_results/',prefix,'.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
@@ -270,38 +296,59 @@ epTable$mutID <- apply(epTable, 1,function(x) paste0(x['Sample'], ':',x['LineID'
 #epTable <- subset(epTable, Affinity<200)
 
 
-allMutVAFs <- data.frame(matrix(vector(), ncol=3)); names(allMutVAFs) <- c('Sample', 'LineID', 'VAF')
+allTotVAFs <- data.frame(matrix(vector(), ncol=6)); names(allMutVAFs) <- c('Sample', 'Chr', 'Start', 'VAF', 'CN', 'CCF')
 
 for(sample in unique(epTable$Sample)){
-sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
-exonic <- readExonicFile(sampleFileEx)
+#sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
+#exonic <- readExonicFile(sampleFileEx)
+vcf <- read.table(paste0(dir, '/VCF/',sample,'.vcf'), sep='\t', stringsAsFactors = F)
+names(vcf)[c(1,2,11)] <- c('Chr', 'Start', 'Region_0')
+  
+#tmpVAF <- data.frame(Sample=sample, Chr=exonic$Chrom, Start=exonic$Start,  LineID=exonic$LineID, VAF=computeVafAD(exonic, 'Region_0'))
+tmpVAF <- data.frame(Sample=sample, Chr=vcf$Chr, Start=vcf$Start,  VAF=computeVafAD(vcf, 'Region_0'))
 
-tmpVAF <- data.frame(Sample=sample, LineID=exonic$LineID, VAF=computeVafAD(exonic, 22))
-allMutVAFs <- rbind(allMutVAFs, tmpVAF)
+
+cnafile <- cna.df[cna.df$Patient==sample,'FileName']
+if (length(cnafile)==0){next}
+cna <- read.table(paste0('~/Dropbox/Code/TCGA/CRC_CNA/',cnafile), sep='\t', header=T, stringsAsFactors = F)
+cna$Chromosome <- paste0('chr', cna$Chromosome)
+cna$Segment_Mean <- (((2^(cna$Segment_Mean))*2 -2 )/ploidy.df[sample,'tumorPurity'] + 2)
+#cna$Segment_Mean <- (2^(cna$Segment_Mean))
+
+tmpVAF$CN <- sapply(1:nrow(tmpVAF), function(i) getCNAofMut(cna,tmpVAF[i,]))
+tmpVAF$CCF <- (tmpVAF$VAF*tmpVAF$CN)*(1/ploidy.df[sample,'tumorPurity'])
+allTotVAFs <- rbind(allTotVAFs, tmpVAF)
+}
+
+getCNAofMut <- function(cna, mutLine){
+  cnstate <- cna[cna$Chromosome==mutLine$Chr & (cna$Start < mutLine$Start) & (cna$End > mutLine$Start),
+      'Segment_Mean']
+  if (length(cnstate)==0){return(NA)}
+  return(cnstate)
 }
 
 allMutVAFs$mutID <- apply(allMutVAFs, 1,function(x) paste0(x['Sample'], ':',x['LineID'] ) )
 
 pdf(paste0(dir, '_VAFs_collection_rp.pdf'),width=8,height=5)
 
-fmax=0.8; fmin=0.1
+fmax=0.6; fmin=0.12
 steps <- seq(fmax,fmin,by=(-1e-2))
 
-for (samp in row.names(subset(summaryTable, (Total>200)))){
+for (samp in ){
 #for (samp in row.names(subset(summaryTable, (Total>120) & !(MUT) & !(LOH) & !(B2M) & !(PDL)))){
   
-pAll <- ggplot(subset(allMutVAFs, (Sample==samp)), aes(x=VAF)) + geom_histogram(bins=30)
-pEp <- ggplot(subset(allMutVAFs, (Sample==samp) & (mutID %in% epTable$mutID)), aes(x=VAF, y=..density..)) + geom_histogram(bins=30, fill='firebrick3', alpha=0.5) +
-  labs(title=samp) + scale_x_continuous(breaks = seq(0, 0.8, 0.2)) +
-  geom_histogram(data=subset(allMutVAFs, (Sample==samp) & !(mutID %in% epTable$mutID)), aes(x=VAF,y=..density..), bins=30, fill='skyblue4', alpha=0.5)
+pAll <- ggplot(subset(allMutVAFs, (Sample==samp)), aes(x=CCF)) + geom_histogram(bins=30)
+pEp <- ggplot(subset(allMutVAFs, (Sample==samp) & (mutID %in% epTable$mutID)), aes(x=CCF, y=..density..)) + geom_histogram(bins=30, fill='firebrick3', alpha=0.5) +
+  labs(title=samp) +
+  geom_histogram(data=subset(allMutVAFs, (Sample==samp) & !(mutID %in% epTable$mutID)), aes(x=CCF,y=..density..), bins=30, fill='skyblue4', alpha=0.5)
 
-vafAll<-subset(allMutVAFs, (Sample==samp))$VAF
-vafEp <- subset(allMutVAFs, (Sample==samp) & (mutID %in% epTable$mutID))$VAF
+vafAll<-na.omit(subset(allMutVAFs, (Sample==samp))$CCF)
+vafEp <- na.omit(subset(allMutVAFs, (Sample==samp) & (mutID %in% epTable$mutID))$CCF)
 
 cumvaf <- data.frame(invf = (1/steps), cumvaf=sapply(steps, function(x) sum(vafAll>=x))/length(vafAll),
                      cumvafEp=sapply(steps, function(x) sum(vafEp>=x))/length(vafEp))
 pCum <- ggplot(cumvaf, aes(x=invf, y=cumvaf)) + geom_line() + geom_line(data=cumvaf, aes(x=invf, y=cumvafEp), colour='red') +
-  labs(x='1/f', y='Cumulative frequency', title=summaryTable[samp,'MSI'])
+  labs(x='1/f', y='Cumulative frequency')
 
 grid.arrange(pEp, pCum, nrow=1)
 
