@@ -388,6 +388,7 @@ escape.df[ (is.na(escape.df$HLA_LOH) & is.na(escape.df$HLA_MUT) & escape.df$B2M_
 escape.df[ ((is.na(escape.df$HLA_LOH)) & is.na(escape.df$HLA_MUT) & (escape.df$B2M_MUT>0) & (escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'CHECKPOINT_&_B2M'
 escape.df[ (!(is.na(escape.df$HLA_LOH)) & is.na(escape.df$HLA_MUT) & (escape.df$B2M_MUT==0) & (escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'CHECKPOINT_&_LOH'
 escape.df[ ((is.na(escape.df$HLA_LOH)) & !is.na(escape.df$HLA_MUT) & (escape.df$B2M_MUT==0) & (escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'CHECKPOINT_&_HLAMUT'
+escape.df[ (!(is.na(escape.df$HLA_LOH)) & (!is.na(escape.df$HLA_MUT) | (escape.df$B2M_MUT>0)) & !(escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'LOH_&_MUT'
 escape.df[ ((!is.na(escape.df$HLA_LOH)) + (!is.na(escape.df$HLA_MUT)) + (escape.df$B2M_MUT>0) + (escape.df$PDL1 | escape.df$CTLA4))>2, 'Escape' ] <- 'COMBINATION'
 escape.df[is.na(escape.df$Escape) & !(is.na(escape.df$AI)),'Escape'] <- 'AI'
 escape.df[is.na(escape.df$Escape),'Escape'] <- 'NONE'
@@ -407,8 +408,8 @@ pesc1 <- ggplot(data.frame(value=as.numeric(table(escape.df.mss$Escape)),var=nam
 pesc2 <- ggplot(data.frame(value=as.numeric(table(escape.df.msi$Escape)),var=names(table(escape.df.msi$Escape))), aes(x='', y=value ,fill=var)) +
   geom_bar(stat='identity') +
   coord_polar('y', start=0) +
-  scale_fill_manual(values=c('#dcc8c8', '#966a9f', '#d87600',
-                             '#fee08b', '#ffffbf','#fdae61', '#abdda4', '#d53e4f', '#3288bd', 'grey80')) +
+  scale_fill_manual(values=c('#966a9f', '#d87600',
+                             '#fee08b', '#ffffbf','#fdae61', '#abdda4', '#d53e4f', '#3288bd', '#b58d6e', 'grey80')) +
   labs(fill='Escape mechanism', x='', y='', title='MSI tumours (n=62)') + 
   theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=14))
 
@@ -416,8 +417,8 @@ pesc2 <- ggplot(data.frame(value=as.numeric(table(escape.df.msi$Escape)),var=nam
 pesc3 <- ggplot(data.frame(value=as.numeric(table(escape.df.pole$Escape)),var=names(table(escape.df.pole$Escape))), aes(x='', y=value ,fill=var)) +
   geom_bar(stat='identity') +
   coord_polar('y', start=0) +
-  scale_fill_manual(values=c('#dcc8c8', '#d87600',
-                             '#fee08b', '#ffffbf', '#abdda4', '#d53e4f', '#3288bd', 'grey80')) +
+  scale_fill_manual(values=c('#d87600',
+                             '#fee08b', '#ffffbf', '#abdda4', '#d53e4f', '#b58d6e', 'grey80')) +
   labs(fill='Escape mechanism', x='', y='', title='POLE tumours (n=11)') + 
   theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=14))
 
@@ -434,6 +435,10 @@ gzma <- 'ENSG00000145649'
 prf <- 'ENSG00000180644'
 pdl <- 'ENSG00000120217'
 ctla <- 'ENSG00000163599'
+
+tcag <- c('ENSG00000108691', 'ENSG00000277632', 'ENSG00000275302', 'ENSG00000138755', 'ENSG00000169245',
+          'ENSG00000153563', 'ENSG00000241106', 'ENSG00000242574', 'ENSG00000204252', 'ENSG00000113088',
+          'ENSG00000163600', 'ENSG00000125347')
 exprcyt <- log10(tcga.tpm[c(gzma, prf),]+1)
 cyts <- apply(exprcyt, 2, function(x) sqrt(x[1]*x[2]))
 ggplot(data.frame(value=cyts), aes(x=value)) + geom_density()
@@ -470,6 +475,10 @@ ggplot(totexpr[totexpr$MSI %in% c('MSI-H', 'MSI-L'),], aes(x=c, y=p, colour=MSI)
   guides(colour=F) + labs(x='CYT score (logTPM)', y='PD-L1 expression (logTPM)') +
   theme(text=element_text(size=16))
 
+
+#T-cell associated genes
+exprtcag <- log10(tcga.tpm[tcag,]+1)
+tcavg <- apply(exprtcag, 2, mean)
 
 lohhla.patients$CYT <- cyts[match(gsub('-','.',lohhla.patients$ID), names(cyts))]
 ggplot(na.omit(lohhla.patients), aes(x=MSI, y=CYT, fill=MSI)) + geom_violin() +

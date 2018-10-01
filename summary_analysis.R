@@ -191,7 +191,7 @@ p0 <- ggplot(summaryTable.sub, aes(x=Total_MUT, y=MutRatio, colour=as.factor(Hyp
   labs(colour='Hypermutated', x='Total somatic missense mutations', y=ylb) + theme_bw() + guides(color=F)
 p1 <- ggplot(summaryTable.sub, aes(x=MSI, y=MutRatio, fill=as.factor(MSI))) + geom_violin() +
   stat_compare_means(comparisons = list(c('MSI-H', 'MSI-L')), aes(label = paste0("p = ", ..p.format..))) +
-  guides(fill=F) + labs(y=ylb, title=mlab) + theme_bw() + scale_fill_manual(values=c('darkorange3', 'darkseagreen4'))
+  guides(fill=F) + labs(y=ylb, title=mlab) + theme_bw() + scale_fill_manual(values=c('darkorange3', 'darkseagreen4', 'purple'))
 p2 <- ggplot(summaryTable.sub, aes(x=Hyp, y=MutRatio, fill=as.factor(Hyp))) + geom_violin() +
   stat_compare_means(comparisons = list(c(1,0))) +
   guides(fill=F) + labs(y=ylb, x='Hypermutated', title=mlab)
@@ -328,7 +328,7 @@ mutCompare.signif <- subset(mutCompare, All>25)
 epTable$AntigenID <- apply(epTable, 1,function(x) paste0(x['Sample'], ':',x['Identity'], ':',x['peptide'] ) )
 
 
-recoTable <- read.table('~/RNAseq/Neoepitopes/TCGA_CRC/Neopred_results/PredictedRecognitionPotentials.txt',
+recoTable <- read.table('TCGA_CRC/Neopred_results/PredictedRecognitionPotentials.txt',
                         stringsAsFactors = F, header=T)
 
 recoTable$AntigenID <- apply(recoTable, 1,function(x) paste0(x['Sample'], ':',x['Mutation'], ':',x['MutantPeptide'] ) )
@@ -341,6 +341,23 @@ recoTable.sorted <- recoTable.imm[order(-recoTable.imm$NeoantigenRecognitionPote
 recoTable.pat1 <- recoTable.sorted[!duplicated(recoTable.sorted$Sample),]
 
 ggplot(recoTable.pat1, aes(x=NeoantigenRecognitionPotential)) +geom_histogram(bins=40)
+
+
+# Rankings ----------------------------------------------------------------
+
+xx <- recoTable.sorted2 %>% group_by(Sample) %>% summarise(max=max(NeoantigenRecognitionPotential), mean=mean(NeoantigenRecognitionPotential), sum=sum(NeoantigenRecognitionPotential), n=n())
+
+p1 <- ggplot(xx2[xx2$max>10,], aes(x=Sample, y=max, fill=Escape)) + geom_bar(stat='identity') + scale_y_log10()
+p2 <- ggplot(xx[xx$sum>10,], aes(x=Sample, y=sum, fill=Escape)) + geom_bar(stat='identity') + scale_y_log10()
+
+
+nocheckpoint <- escape.df$Patient[!grepl('CHECKPOINT', escape.df$Escape) & escape.df$Escape!='NONE']
+
+recoTable.pat2.nc <- subset(recoTable.pat2, Sample %in% nocheckpoint)
+recoTable.pat2.nc$Lost <- NA
+
+h <- apply(recoTable.pat2.nc,1, function(x) epTable[epTable$AntigenID==x['AntigenID'] & epTable$Affinity<500,]$hla)
+
 
 ############################################################################
 # Add expression ----------------------------------------------------------

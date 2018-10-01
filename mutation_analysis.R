@@ -329,26 +329,36 @@ getCNAofMut <- function(cna, mutLine){
 
 allMutVAFs$mutID <- apply(allMutVAFs, 1,function(x) paste0(x['Sample'], ':',x['LineID'] ) )
 
+epnums <- table(epTable$Sample)
+escape.df$EpNumberRP <- epnums[ escape.df$Patient]
+
+sampsToCheck <- subset(escape.df, Escape %in% c('AI', 'NONE') & EpNumberRP > 30  )$Patient
+
 pdf(paste0(dir, '_VAFs_collection_rp.pdf'),width=8,height=5)
 
-fmax=0.6; fmin=0.12
+fmax=0.8; fmin=0.25
 steps <- seq(fmax,fmin,by=(-1e-2))
 
-for (samp in ){
+for (samp in sampsToCheck ){
 #for (samp in row.names(subset(summaryTable, (Total>120) & !(MUT) & !(LOH) & !(B2M) & !(PDL)))){
   
-pAll <- ggplot(subset(allMutVAFs, (Sample==samp)), aes(x=CCF)) + geom_histogram(bins=30)
-pEp <- ggplot(subset(allMutVAFs, (Sample==samp) & (mutID %in% epTable$mutID)), aes(x=CCF, y=..density..)) + geom_histogram(bins=30, fill='firebrick3', alpha=0.5) +
+#pAll <- ggplot(subset(allTotVAFs, (Sample==samp)), aes(x=CCF)) + geom_histogram(bins=30)
+pEp <- ggplot(subset(allTotVAFs, (Sample==samp)), aes(x=CCF, y=..density..)) + geom_histogram(bins=40, fill='grey30', alpha=0.5) +
+  geom_histogram(data=subset(allMutVAFs, (Sample==samp) & (mutID %in% epTable$mutID)), aes(x=CCF, y=..density..),bins=25, fill='firebrick3', alpha=0.5) +
   labs(title=samp) +
-  geom_histogram(data=subset(allMutVAFs, (Sample==samp) & !(mutID %in% epTable$mutID)), aes(x=CCF,y=..density..), bins=30, fill='skyblue4', alpha=0.5)
+  geom_histogram(data=subset(allMutVAFs, (Sample==samp) & !(mutID %in% epTable$mutID)), aes(x=CCF,y=..density..), bins=25, fill='skyblue4', alpha=0.5) +
+  scale_x_continuous(limits=c(0, 2))
 
 vafAll<-na.omit(subset(allMutVAFs, (Sample==samp))$CCF)
+vafTot<-na.omit(subset(allTotVAFs, (Sample==samp))$CCF)
 vafEp <- na.omit(subset(allMutVAFs, (Sample==samp) & (mutID %in% epTable$mutID))$CCF)
 
 cumvaf <- data.frame(invf = (1/steps), cumvaf=sapply(steps, function(x) sum(vafAll>=x))/length(vafAll),
-                     cumvafEp=sapply(steps, function(x) sum(vafEp>=x))/length(vafEp))
-pCum <- ggplot(cumvaf, aes(x=invf, y=cumvaf)) + geom_line() + geom_line(data=cumvaf, aes(x=invf, y=cumvafEp), colour='red') +
-  labs(x='1/f', y='Cumulative frequency')
+                     cumvafEp=sapply(steps, function(x) sum(vafEp>=x))/length(vafEp),
+                     cumvafTot=sapply(steps, function(x) sum(vafTot>=x))/length(vafTot))
+pCum <- ggplot(cumvaf, aes(x=invf, y=cumvaf)) + geom_line(colour='skyblue4') + geom_line(data=cumvaf, aes(x=invf, y=cumvafEp), colour='firebrick3') +
+  geom_line(data=cumvaf, aes(x=invf, y=cumvafTot), colour='grey20') +
+  labs(x='1/CCF', y='Cumulative frequency', title=paste0(escape.df[escape.df$Patient==samp, c('EpNumberRP', 'Escape', 'CYT')],collapse=';'))
 
 grid.arrange(pEp, pCum, nrow=1)
 
