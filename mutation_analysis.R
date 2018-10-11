@@ -254,6 +254,28 @@ loh.neoeps.df[nrow(loh.neoeps.df)+1,] <- c(samp, substr(hla.lost, 5,5),'LOH',
 loh.neoeps.df[nrow(loh.neoeps.df)+1,] <- c(samp, substr(hla.lost, 5,5),'noLOH',
                                            t.noLOH[hla.lost],t.noLOH[hla.kept], sum(t.noLOH) )
 
+loh.neoeps.df$LostHLARatio <- loh.neoeps.df$BoundToLost/loh.neoeps.df$BoundToAll
+loh.neoeps.df$ID <- apply(loh.neoeps.df,1, function(x) paste0(x['Sample'],':',x['Allele']))
+
+
+pLines <- ggplot(loh.neoeps.df, aes(x=Subclone, y=LostHLARatio, group=ID, color=Allele)) +
+  geom_line(size=1.2) + geom_point(size=2.5) + scale_x_discrete(expand=c(0.1,0.1)) +
+  scale_y_continuous(labels=percent) +
+  scale_color_manual(values=c('#7577c9','#51a77f','#e9813d')) +
+  labs(y='Percentage of subclonal neoantigens bound to\nlost allele/ total neoantigens', x='Subclone') + 
+  theme_bw() + theme(text=element_text(size=16))
+
+loh.bound.df <- loh.neoeps.df[,c('ID', 'BoundToLost', 'BoundToKept', 'Subclone')]
+loh.bound.df <- loh.bound.df[order(loh.bound.df$Subclone,decreasing=T),]
+
+pLines2 <- ggplot(melt(loh.bound.df), aes(x=variable, y=value, group=paste0(ID,Subclone), colour=Subclone, shape=ID)) +
+  geom_line(size=1.2) + geom_point(size=3) + scale_x_discrete(expand=c(0.1,0.1), labels=c('Lost allele', 'Retained allele')) +
+  scale_y_log10() + scale_color_manual(values=c('#4180ae', '#cf5f5f')) +
+  scale_shape_manual(values=c(16,17,18,15,4,8)) +
+  labs(y='Neoantigens bound to HLA allele', x='Allele') + 
+  theme_bw() + theme(text=element_text(size=16)) + guides(shape=F)
+
+
 p1 <- ggpaired(loh.neoeps.df, x='Subclone', y='LostHLARatio', id='Sample', fill='Subclone',
          line.color = "grey35", line.size = 0.4) + stat_compare_means(paired=T, label.x.npc ='centre') +
   scale_y_continuous(labels=percent) + scale_fill_manual(values=c('skyblue4', 'firebrick3')) +
@@ -283,7 +305,7 @@ dev.off()
 ###########################################################################
 # TCGA analysis -----------------------------------------------------------
 
-dir <- 'TCGA_CRC'
+dir <- '../TCGA_CRC'
 prefix <- 'Total'
 epTable <- read.table(paste0(dir, '/Neopred_results/',prefix,'.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
@@ -292,6 +314,17 @@ names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom
                     'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score', 'Affinity', 'Rank', 'Cand', 'BindLevel')
 
 epTable$mutID <- apply(epTable, 1,function(x) paste0(x['Sample'], ':',x['LineID'] ) )
+epTable$AntigenID <- apply(epTable, 1,function(x) paste0(x['Sample'], ':',x['Identity'], ':',x['peptide'] ) )
+
+
+recoTable <- read.table('../TCGA_CRC/Neopred_results/PredictedRecognitionPotentials.txt',
+                        stringsAsFactors = F, header=T)
+
+recoTable$AntigenID <- apply(recoTable, 1,function(x) paste0(x['Sample'], ':',x['Mutation'], ':',x['MutantPeptide'] ) )
+
+recoTable.imm <- subset(recoTable, NeoantigenRecognitionPotential>1e-2)
+
+epTable.imm <- subset(epTable, AntigenID %in% recoTable.imm$AntigenID)
 
 #epTable <- subset(epTable, Affinity<200)
 
@@ -365,6 +398,29 @@ grid.arrange(pEp, pCum, nrow=1)
 }
 dev.off()
 
+
+
+# VAF/clonality of neoepitopes --------------------------------------------
+
+# Show that in TCGA neoepitopes are clonal
+
+allTotVAFs <- read.table('~/Dropbox/Code/TCGA/CRC_allVAF_master_file.txt',
+                         sep='\t', stringsAsFactors = F, header=T)
+allMutVAFs <- read.table('~/Dropbox/Code/TCGA/CRC_exonicVAF_master_file.txt',
+                         sep='\t', stringsAsFactors = F, header=T)
+allMutVAFs$mutID <- apply(allMutVAFs, 1,function(x) paste0(x['Sample'], ':',x['LineID'] ) )
+
+allEpVAFs <- subset(allMutVAFs, mutID %in% epTable.imm$mutID)
+
+maxEpVAFs <- sapply(unique(epTable$Sample), function(x) max(allEpVAFs[allEpVAFs$Sample==x,'CCF'], na.rm=T)  )
+maxEpVAFs[maxEpVAFs==-Inf] <- NA
+maxEpVAFs <- maxEpVAFs[order(-maxEpVAFs)]; maxEpVAFs[maxEpVAFs>1] <- 1
+
+pmaxvaf.tcga <- ggplot(na.omit(data.frame(value=maxEpVAFs, ind=(1:length(maxEpVAFs)))), aes(x=ind, y=value)) +
+  geom_point(alpha=0.8, size=3) +
+  scale_y_log10(labels=percent)  +
+  labs(x='TCGA CRC sample', y='Proportion of cells sharing\nthe most common neoantigen') +
+  theme_bw() + theme(text=element_text(size=16), axis.text.x = element_blank(), axis.ticks.x = element_blank())
 
 
 # VAF vs epitope-strength -------------------------------------------------

@@ -252,10 +252,12 @@ correctHeader <- c('individual', 'contig', 'position', 'context', 'ref_allele', 
 
 muthla.master <- data.frame(matrix(vector()))
 
+noMutPreds <- c()
 for (dir in dirList){
   sampleList <- list.files(dir, pattern='*')
   for (sample in sampleList){
     hlaList <- list.files(paste0(dir, '/', sample), pattern='*.mutect.unfiltered.annotated')
+    if (length(hlaList)==0){noMutPreds = c(noMutPreds, sample)}
     for (hla in hlaList){
       muthla <- tryCatch(
         {read.table(paste0(dir,'/', sample,'/', hla), stringsAsFactors = F, header=F, skip=1, sep='\t')},
@@ -380,6 +382,8 @@ escape.df$MSI <- clin.df[match(escape.df$Patient, clin.df$Patient), 'MSI']
 
 escape.df <- read.table('~/Dropbox/Code/TCGA/CRC_escape_master_file.txt',stringsAsFactors = F, sep='\t', header=T)
 escape.df <- escape.df[!is.na(escape.df$PDL1),]
+escape.df <- subset(escape.df, FULL_INFO)
+
 escape.df$Escape <- NA
 escape.df[ (is.na(escape.df$HLA_LOH) & !is.na(escape.df$HLA_MUT) & escape.df$B2M_MUT==0 & !escape.df$PDL1 & !escape.df$CTLA4), 'Escape' ] <- 'HLA_MUT'
 escape.df[ (is.na(escape.df$HLA_LOH) & is.na(escape.df$HLA_MUT) & escape.df$B2M_MUT==0 & (escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'CHECKPOINT'
@@ -400,27 +404,36 @@ escape.df.pole <- subset(escape.df, MSI=='POLE')
 pesc1 <- ggplot(data.frame(value=as.numeric(table(escape.df.mss$Escape)),var=names(table(escape.df.mss$Escape))), aes(x='', y=value ,fill=var)) +
   geom_bar(stat='identity') +
   coord_polar('y', start=0) +
-  scale_fill_manual(values=c('#dcc8c8', '#966a9f', '#d87600',
-                     '#fee08b', '#ffffbf','#fdae61', '#abdda4', '#d53e4f', '#3288bd', 'grey80')) +
-  labs(fill='Escape mechanism', x='', y='', title='MSS tumours (n=440)') + 
-  theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=14))
+  scale_fill_manual(values=c('#e1b0b0',
+                             '#7577c9',
+                             '#e2b01d', '#7abf9f', '#85bb59','#e9813d',
+                             '#a77955',
+                             '#d53e4f', '#3288bd',
+                             'grey80')) +
+  labs(fill='Escape mechanism', x='', y='', title='MSS tumours (n=418)') + 
+  theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=16))
 
 pesc2 <- ggplot(data.frame(value=as.numeric(table(escape.df.msi$Escape)),var=names(table(escape.df.msi$Escape))), aes(x='', y=value ,fill=var)) +
   geom_bar(stat='identity') +
   coord_polar('y', start=0) +
-  scale_fill_manual(values=c('#966a9f', '#d87600',
-                             '#fee08b', '#ffffbf','#fdae61', '#abdda4', '#d53e4f', '#3288bd', '#b58d6e', 'grey80')) +
-  labs(fill='Escape mechanism', x='', y='', title='MSI tumours (n=62)') + 
-  theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=14))
+  scale_fill_manual(values=c('#7577c9',
+                             '#e2b01d','#7abf9f', '#85bb59','#e9813d',
+                             '#a77955',
+                             '#d53e4f', '#3288bd', '#aa4c9a',
+                             'grey80')) +
+  labs(fill='Escape mechanism', x='', y='', title='MSI tumours (n=60)') + 
+  theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=16))
 
 
 pesc3 <- ggplot(data.frame(value=as.numeric(table(escape.df.pole$Escape)),var=names(table(escape.df.pole$Escape))), aes(x='', y=value ,fill=var)) +
   geom_bar(stat='identity') +
   coord_polar('y', start=0) +
-  scale_fill_manual(values=c('#d87600',
-                             '#fee08b', '#ffffbf', '#abdda4', '#d53e4f', '#b58d6e', 'grey80')) +
+  scale_fill_manual(values=c('#e2b01d','#7abf9f', '#85bb59',
+                             '#a77955',
+                             '#d53e4f', '#aa4c9a',
+                             'grey80')) +
   labs(fill='Escape mechanism', x='', y='', title='POLE tumours (n=11)') + 
-  theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=14))
+  theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=16))
 
 
 ######################################################################################
