@@ -328,6 +328,7 @@ epTable.imm <- subset(epTable, AntigenID %in% recoTable.imm$AntigenID)
 
 #epTable <- subset(epTable, Affinity<200)
 
+ploidy.df <- read.table('~/Dropbox/Code/TCGA/CRC_ploidy_master.txt', sep='\t', stringsAsFactors = F, header=T, row.names=1)
 
 allTotVAFs <- data.frame(matrix(vector(), ncol=6)); names(allMutVAFs) <- c('Sample', 'Chr', 'Start', 'VAF', 'CN', 'CCF')
 
@@ -386,9 +387,14 @@ vafAll<-na.omit(subset(allMutVAFs, (Sample==samp))$CCF)
 vafTot<-na.omit(subset(allTotVAFs, (Sample==samp))$CCF)
 vafEp <- na.omit(subset(allMutVAFs, (Sample==samp) & (mutID %in% epTable$mutID))$CCF)
 
-cumvaf <- data.frame(invf = (1/steps), cumvaf=sapply(steps, function(x) sum(vafAll>=x))/length(vafAll),
-                     cumvafEp=sapply(steps, function(x) sum(vafEp>=x))/length(vafEp),
-                     cumvafTot=sapply(steps, function(x) sum(vafTot>=x))/length(vafTot))
+# cumvaf <- data.frame(invf = (1/steps), cumvaf=sapply(steps, function(x) sum(vafAll>=x))/length(vafAll),
+#                      cumvafEp=sapply(steps, function(x) sum(vafEp>=x))/length(vafEp),
+#                      cumvafTot=sapply(steps, function(x) sum(vafTot>=x))/length(vafTot))
+cumvaf <- data.frame(invf = (1/steps),
+                     cumvafEp=sapply(steps, function(x) sum(vafEp>=x)))
+cumvaf$cumvafEp <- cumvaf$cumvafEp - min(cumvaf$cumvafEp)
+cumvaf$cumvafEp <- cumvaf$cumvafEp/max(cumvaf$cumvafEp)
+
 pCum <- ggplot(cumvaf, aes(x=invf, y=cumvaf)) + geom_line(colour='skyblue4') + geom_line(data=cumvaf, aes(x=invf, y=cumvafEp), colour='firebrick3') +
   geom_line(data=cumvaf, aes(x=invf, y=cumvafTot), colour='grey20') +
   labs(x='1/CCF', y='Cumulative frequency', title=paste0(escape.df[escape.df$Patient==samp, c('EpNumberRP', 'Escape', 'CYT')],collapse=';'))
@@ -398,7 +404,32 @@ grid.arrange(pEp, pCum, nrow=1)
 }
 dev.off()
 
+fmax=0.6; fmin=0.2
+steps <- seq(fmax,fmin,by=(-1e-2))
 
+vafEp <- na.omit(subset(allMutVAFs, (Sample %in% goodSamples) & (mutID %in% epTable$mutID))$CCF)
+vafTot <- na.omit(subset(allTotVAFs, (Sample %in% goodSamples))$CCF)
+vafMut <- na.omit(subset(allMutVAFs, (Sample %in% goodSamples))$CCF)
+cumvaf <- data.frame(invf = (1/steps),
+                     cumvafEp=sapply(steps, function(x) sum(vafEp>=x)),
+                     cumvafTot=sapply(steps, function(x) sum(vafTot>=x)),
+                     cumvafEx=sapply(steps, function(x) sum(vafMut>=x)))
+cumvaf$cumvafEp <- cumvaf$cumvafEp - min(cumvaf$cumvafEp);cumvaf$cumvafEp <- cumvaf$cumvafEp/max(cumvaf$cumvafEp)
+cumvaf$cumvafTot <- cumvaf$cumvafTot - min(cumvaf$cumvafTot);cumvaf$cumvafTot <- cumvaf$cumvafTot/max(cumvaf$cumvafTot)
+cumvaf$cumvafEx <- cumvaf$cumvafEx - min(cumvaf$cumvafEx);cumvaf$cumvafEx <- cumvaf$cumvafEx/max(cumvaf$cumvafEx)
+cumvaf <- cumvaf[,c('invf','cumvafTot', 'cumvafEx', 'cumvafEp')]
+
+ggplot(cumvaf, aes(x=invf*2, y=cumvafTot)) + geom_line(color='grey35',size=1.2) +
+  geom_point(data=cumvaf, aes(x=invf*2, y=cumvafEx), color="#8150a3", size=3, shape=15) +
+  geom_line(data=cumvaf, aes(x=invf*2, y=cumvafEp), color="#d63027", size=1.2) +
+  guides(color=T)
+
+pvafallcrc <- ggplot(melt(cumvaf, id='invf'), aes(x=invf*2, y=value, color=variable, shape=variable)) +
+  geom_point(size=3) + geom_line(size=1.6) +
+  scale_color_manual(values=c('grey35',"#8150a3","#d63027"), labels=c('All', 'Exonic', 'Neoantigen')) +
+  scale_shape_manual(values=c(26, 15, 26)) +
+  labs(color='Mutations', x='Inverse allelic frequency 1/f', y='Cumulative frequency distribution') +
+  theme_bw() + theme(text=element_text(size=16)) + guides(shape=F)
 
 # VAF/clonality of neoepitopes --------------------------------------------
 
@@ -410,16 +441,28 @@ allMutVAFs <- read.table('~/Dropbox/Code/TCGA/CRC_exonicVAF_master_file.txt',
                          sep='\t', stringsAsFactors = F, header=T)
 allMutVAFs$mutID <- apply(allMutVAFs, 1,function(x) paste0(x['Sample'], ':',x['LineID'] ) )
 
+#filter samples out by purity+ploidy
+goodSamples <- gsub('.tumour', '', row.names(subset(ploidy.df, tumorPurity>0.4 & tumorPloidy < 3.6)))
+
 allEpVAFs <- subset(allMutVAFs, mutID %in% epTable.imm$mutID)
 
-maxEpVAFs <- sapply(unique(epTable$Sample), function(x) max(allEpVAFs[allEpVAFs$Sample==x,'CCF'], na.rm=T)  )
+maxEpVAFs <- sapply(goodSamples, function(x) max(allEpVAFs[allEpVAFs$Sample==x,'CCF'], na.rm=T)  )
 maxEpVAFs[maxEpVAFs==-Inf] <- NA
 maxEpVAFs <- maxEpVAFs[order(-maxEpVAFs)]; maxEpVAFs[maxEpVAFs>1] <- 1
 
-pmaxvaf.tcga <- ggplot(na.omit(data.frame(value=maxEpVAFs, ind=(1:length(maxEpVAFs)))), aes(x=ind, y=value)) +
+mepvaf.df <- na.omit(data.frame(value=maxEpVAFs, ind=1:length(maxEpVAFs),
+                        tc = tcavg[match(names(maxEpVAFs), gsub('\\.', '-',names(tcavg)))],
+                        cyt = cyts[match(names(maxEpVAFs), gsub('\\.', '-',names(cyts)))]))
+
+orderRows <- order(mepvaf.df[mepvaf.df$value==1, 'cyt'])
+mepvaf.df.ord <- rbind(mepvaf.df[orderRows,], mepvaf.df[mepvaf.df$value!=1,])
+mepvaf.df.ord$ind <- 1:nrow(mepvaf.df.ord)
+
+pmaxvaf.tcga <- ggplot(mepvaf.df.ord, aes(x=ind, y=value, colour=cyt/2.1293)) +
   geom_point(alpha=0.8, size=3) +
   scale_y_log10(labels=percent)  +
-  labs(x='TCGA CRC sample', y='Proportion of cells sharing\nthe most common neoantigen') +
+  immColor +
+  labs(x='TCGA CRC sample', y='Proportion of cells sharing the most common neoantigen', colour='Normalised\nT-cell avg') +
   theme_bw() + theme(text=element_text(size=16), axis.text.x = element_blank(), axis.ticks.x = element_blank())
 
 

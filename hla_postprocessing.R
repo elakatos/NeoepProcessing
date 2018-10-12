@@ -410,7 +410,7 @@ pesc1 <- ggplot(data.frame(value=as.numeric(table(escape.df.mss$Escape)),var=nam
                              '#a77955',
                              '#d53e4f', '#3288bd',
                              'grey80')) +
-  labs(fill='Escape mechanism', x='', y='', title='MSS tumours (n=418)') + 
+  labs(fill='Escape mechanism', x='', y='', title=paste0('MSS tumours (n=',nrow(escape.df.mss),')')) + 
   theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=16))
 
 pesc2 <- ggplot(data.frame(value=as.numeric(table(escape.df.msi$Escape)),var=names(table(escape.df.msi$Escape))), aes(x='', y=value ,fill=var)) +
@@ -419,9 +419,9 @@ pesc2 <- ggplot(data.frame(value=as.numeric(table(escape.df.msi$Escape)),var=nam
   scale_fill_manual(values=c('#7577c9',
                              '#e2b01d','#7abf9f', '#85bb59','#e9813d',
                              '#a77955',
-                             '#d53e4f', '#3288bd', '#aa4c9a',
+                             '#d53e4f', '#3288bd',# '#aa4c9a',
                              'grey80')) +
-  labs(fill='Escape mechanism', x='', y='', title='MSI tumours (n=60)') + 
+  labs(fill='Escape mechanism', x='', y='', title=paste0('MSI tumours (n=',nrow(escape.df.msi),')')) + 
   theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=16))
 
 
@@ -430,9 +430,10 @@ pesc3 <- ggplot(data.frame(value=as.numeric(table(escape.df.pole$Escape)),var=na
   coord_polar('y', start=0) +
   scale_fill_manual(values=c('#e2b01d','#7abf9f', '#85bb59',
                              '#a77955',
-                             '#d53e4f', '#aa4c9a',
+                             #'#d53e4f',
+                             '#aa4c9a',
                              'grey80')) +
-  labs(fill='Escape mechanism', x='', y='', title='POLE tumours (n=11)') + 
+  labs(fill='Escape mechanism', x='', y='', title=paste0('POLE tumours (n=',nrow(escape.df.pole),')')) + 
   theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=16))
 
 
