@@ -332,34 +332,36 @@ ploidy.df <- read.table('~/Dropbox/Code/TCGA/CRC_ploidy_master.txt', sep='\t', s
 
 allTotVAFs <- data.frame(matrix(vector(), ncol=6)); names(allMutVAFs) <- c('Sample', 'Chr', 'Start', 'VAF', 'CN', 'CCF')
 
-for(sample in unique(epTable$Sample)){
-#sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
-#exonic <- readExonicFile(sampleFileEx)
-vcf <- read.table(paste0(dir, '/VCF/',sample,'.vcf'), sep='\t', stringsAsFactors = F)
-names(vcf)[c(1,2,11)] <- c('Chr', 'Start', 'Region_0')
-  
-#tmpVAF <- data.frame(Sample=sample, Chr=exonic$Chrom, Start=exonic$Start,  LineID=exonic$LineID, VAF=computeVafAD(exonic, 'Region_0'))
-tmpVAF <- data.frame(Sample=sample, Chr=vcf$Chr, Start=vcf$Start,  VAF=computeVafAD(vcf, 'Region_0'))
+# generate CCFs of mutations
 
-
-cnafile <- cna.df[cna.df$Patient==sample,'FileName']
-if (length(cnafile)==0){next}
-cna <- read.table(paste0('~/Dropbox/Code/TCGA/CRC_CNA/',cnafile), sep='\t', header=T, stringsAsFactors = F)
-cna$Chromosome <- paste0('chr', cna$Chromosome)
-cna$Segment_Mean <- (((2^(cna$Segment_Mean))*2 -2 )/ploidy.df[sample,'tumorPurity'] + 2)
-#cna$Segment_Mean <- (2^(cna$Segment_Mean))
-
-tmpVAF$CN <- sapply(1:nrow(tmpVAF), function(i) getCNAofMut(cna,tmpVAF[i,]))
-tmpVAF$CCF <- (tmpVAF$VAF*tmpVAF$CN)*(1/ploidy.df[sample,'tumorPurity'])
-allTotVAFs <- rbind(allTotVAFs, tmpVAF)
-}
-
-getCNAofMut <- function(cna, mutLine){
-  cnstate <- cna[cna$Chromosome==mutLine$Chr & (cna$Start < mutLine$Start) & (cna$End > mutLine$Start),
-      'Segment_Mean']
-  if (length(cnstate)==0){return(NA)}
-  return(cnstate)
-}
+# for(sample in unique(epTable$Sample)){
+# #sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
+# #exonic <- readExonicFile(sampleFileEx)
+# vcf <- read.table(paste0(dir, '/VCF/',sample,'.vcf'), sep='\t', stringsAsFactors = F)
+# names(vcf)[c(1,2,11)] <- c('Chr', 'Start', 'Region_0')
+#   
+# #tmpVAF <- data.frame(Sample=sample, Chr=exonic$Chrom, Start=exonic$Start,  LineID=exonic$LineID, VAF=computeVafAD(exonic, 'Region_0'))
+# tmpVAF <- data.frame(Sample=sample, Chr=vcf$Chr, Start=vcf$Start,  VAF=computeVafAD(vcf, 'Region_0'))
+# 
+# 
+# cnafile <- cna.df[cna.df$Patient==sample,'FileName']
+# if (length(cnafile)==0){next}
+# cna <- read.table(paste0('~/Dropbox/Code/TCGA/CRC_CNA/',cnafile), sep='\t', header=T, stringsAsFactors = F)
+# cna$Chromosome <- paste0('chr', cna$Chromosome)
+# cna$Segment_Mean <- (((2^(cna$Segment_Mean))*2 -2 )/ploidy.df[sample,'tumorPurity'] + 2)
+# #cna$Segment_Mean <- (2^(cna$Segment_Mean))
+# 
+# tmpVAF$CN <- sapply(1:nrow(tmpVAF), function(i) getCNAofMut(cna,tmpVAF[i,]))
+# tmpVAF$CCF <- (tmpVAF$VAF*tmpVAF$CN)*(1/ploidy.df[sample,'tumorPurity'])
+# allTotVAFs <- rbind(allTotVAFs, tmpVAF)
+# }
+# 
+# getCNAofMut <- function(cna, mutLine){
+#   cnstate <- cna[cna$Chromosome==mutLine$Chr & (cna$Start < mutLine$Start) & (cna$End > mutLine$Start),
+#       'Segment_Mean']
+#   if (length(cnstate)==0){return(NA)}
+#   return(cnstate)
+# }
 
 allMutVAFs$mutID <- apply(allMutVAFs, 1,function(x) paste0(x['Sample'], ':',x['LineID'] ) )
 
@@ -465,6 +467,23 @@ pmaxvaf.tcga <- ggplot(mepvaf.df.ord, aes(x=ind, y=value, colour=cyt/2.1293)) +
   labs(x='TCGA CRC sample', y='Proportion of cells sharing the most common neoantigen', colour='Normalised\nT-cell avg') +
   theme_bw() + theme(text=element_text(size=16), axis.text.x = element_blank(), axis.ticks.x = element_blank())
 
+
+# Is there any connection between immune escape and number of total/subclonal neoantigens?
+
+
+escape.df$Total_neoep <- NA; escape.df$Subclonal_neoep <- NA
+
+for (samp in goodSamples){
+  vaftmp <- subset(allMutVAFs, Sample == samp)
+  escape.df[escape.df$Patient==samp,'Total_neoep'] <- sum((vaftmp$mutID %in% epTable.imm$mutID), na.rm=T)
+  escape.df[escape.df$Patient==samp,'Subclonal_neoep'] <- sum((vaftmp$mutID %in% epTable.imm$mutID) & (vaftmp$CCF < 0.6) & (vaftmp$CCF > 0.3), na.rm=T)
+}
+
+x <- subset(escape.df, MSI=='MSI-H')
+
+psc <- ggplot(x, aes(x=(Escape %in% c('NONE','AI')), y=Subclonal_neoep, fill=(Escape %in% c('NONE','AI')))) +
+  geom_boxplot() + stat_compare_means(label.x.npc = 'centre') + guides(fill=F) +
+  labs(y='High subclonal neantigens (0.3 < CCF < 0.6)', x='Immune escape') + scale_x_discrete(labels=c('Yes (n=42)', 'No (n=7)'))
 
 # VAF vs epitope-strength -------------------------------------------------
 

@@ -129,7 +129,7 @@ dev.off()
 
 # TCGA sample -------------------------------------------------------------
 
-dir = 'TCGA_CRC'
+dir = '../TCGA_CRC'
 prefix='Total'
 #pdf(paste0(dir, '_summary.pdf'), height = 5, width=8)
 epTable <- read.table(paste0(dir, '/Neopred_results/',prefix,'.neoantigens.txt'), header=F,
@@ -137,10 +137,8 @@ epTable <- read.table(paste0(dir, '/Neopred_results/',prefix,'.neoantigens.txt')
 names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
                     'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score','Affinity', 'Rank', 'Cand', 'BindLevel')
-#epNon <- epTable[epTable$Novelty==0,]
-#epTable <- epTable[epTable$Novelty!=0,]
-#epTable <- epTable[epTable$Affinity<500,]
-#epTable <- epTable[epTable$BindLevel=='SB',]
+#Extra filtering
+epTable <- subset(epTable.imm, Sample %in% goodSamples)
 
 summaryTable <- processSummaryOfSampleSet(dir, epTable, prefix)
 
@@ -185,9 +183,9 @@ ylb <- 'TOTAL neo-epitopes'
 summaryTable.sub$MutRatio <- summaryTable.sub$Total_MUT
 ylb <- 'TOTAL somatic missense mutations'
 
-p0 <- ggplot(summaryTable.sub, aes(x=Total_MUT, y=MutRatio, colour=as.factor(Hyp))) + geom_point(size=2) + scale_x_continuous(trans='log10') +
+p0 <- ggplot(summaryTable.sub, aes(x=Total_MUT, y=MutRatio, colour=as.factor(MSI))) + geom_point(size=2) + scale_x_continuous(trans='log10') +
   stat_cor(label.x.npc = 'centre', size=5) + stat_cor(mapping=aes(x=Total_MUT,y=MutRatio,colour=''),label.x.npc='centre', label.y.npc='bottom', size=5) +
-  scale_color_manual(values=c('black','darkseagreen4', 'darkorange3')) +
+  scale_color_manual(values=c('black', 'darkorange3', 'darkseagreen4')) +
   labs(colour='Hypermutated', x='Total somatic missense mutations', y=ylb) + theme_bw() + guides(color=F)
 p1 <- ggplot(summaryTable.sub, aes(x=MSI, y=MutRatio, fill=as.factor(MSI))) + geom_violin() +
   stat_compare_means(comparisons = list(c('MSI-H', 'MSI-L')), aes(label = paste0("p = ", ..p.format..))) +
@@ -328,7 +326,7 @@ mutCompare.signif <- subset(mutCompare, All>25)
 epTable$AntigenID <- apply(epTable, 1,function(x) paste0(x['Sample'], ':',x['Identity'], ':',x['peptide'] ) )
 
 
-recoTable <- read.table('TCGA_CRC/Neopred_results/PredictedRecognitionPotentials.txt',
+recoTable <- read.table('~/CRCdata/TCGA_CRC/Neopred_results/PredictedRecognitionPotentials.txt',
                         stringsAsFactors = F, header=T)
 
 recoTable$AntigenID <- apply(recoTable, 1,function(x) paste0(x['Sample'], ':',x['Mutation'], ':',x['MutantPeptide'] ) )

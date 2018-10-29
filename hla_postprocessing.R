@@ -131,7 +131,7 @@ analyseLohhla <- function(lohhla.master, clin.df){
 }
 
 
-dir <- '~/CRCdata/HLA_LOH/IBD/Rand_CN/'
+dir <- '~/CRCdata/HLA_LOH/CRCmseq/'
 fileList <- list.files(dir, pattern='*.10.DNA.HLAloss*')
 
 lohhla.master <- data.frame(matrix(vector()))
@@ -328,24 +328,30 @@ dim(subset(alleleDF, !pA & !pB & pC))
 # HLA ggplot heatmap ---------------------------------------------------------
 
 # Get information for all alleles : generate melted format already
+
+#Only parts that have an LOH:
+lohhla.master.sub <- subset(lohhla.master, startsWith(region, 'Set9') | startsWith(region, 'Set6') | startsWith(region, 'Set8') | startsWith(region, 'Set10') | startsWith(region, 'Set5') | startsWith(region, 'Polyp.9'))
+lohhla.master.sub <- subset(lohhla.master.sub, !(region %in% c('Set10_92.mkdub')))
+
 lohhla.df <- data.frame('Region'=character(), 'Allele' = character(), 'CopyNumber'=numeric(), 'p.value'=numeric(),stringsAsFactors = F)
 
-for (i in 1:nrow(lohhla.master)){
-  x <- lohhla.master[i,]
+for (i in 1:nrow(lohhla.master.sub)){
+  x <- lohhla.master.sub[i,]
 #r <- substr(x$region,1,nchar(x$region)-6)
   r <- x$region
 allele <- paste0('HLA-',toupper(substr(x$HLA_A_type1,5,5)))
 p <- x$PVal_unique
-val <- ifelse(x$PVal_unique<0.01, min(x$HLA_type1copyNum_withBAFBin, x$HLA_type2copyNum_withBAFBin), NA)
-lohhla.df[i,] <- c(r, allele, val-1.5, p)
+val <- ifelse(x$PVal_unique<0.03, min(x$HLA_type1copyNum_withBAFBin, x$HLA_type2copyNum_withBAFBin), 1)
+lohhla.df[i,] <- c(r, allele, val, p)
 }
-lohhla.df$CopyNumber <- as.numeric(lohhla.df$CopyNumber)
+lohhla.df$CopyNumber <- as.numeric(lohhla.df$CopyNumber)<0.5
 lohhla.df$p.value <- as.numeric(lohhla.df$p.value)
 lohhla.df <- lohhla.df[order(lohhla.df$Region),]
 
-pLOH <- ggplot(lohhla.df, aes(y=Region, x=Allele, fill=CopyNumber)) + geom_tile() +
-  scale_fill_gradientn(colours=c('red4', 'red4', 'red4', 'red4', 'brown3', 'mistyrose2', 'bisque', 'cornsilk3'), limits=c(-2.5, 2), na.value='grey70') +
-  theme_bw()
+pLOH <- ggplot(lohhla.df, aes(y=Allele, x=Region, fill=CopyNumber)) + geom_tile() +
+  theme_bw() + scale_fill_manual(values=c('grey80','#d53e4f'), labels=c('No', 'Yes', '')) +
+  labs(fill='HLA_LOH') + theme(axis.ticks.x=element_blank(), axis.text.x=element_blank(), axis.title.x=element_blank(), text=element_text(size=16))
+  scale_fill_gradientn(colours=c('red4', 'red4', 'red4', 'red4', 'brown3', 'mistyrose2', 'bisque', 'cornsilk3'), limits=c(-2.5, 2), na.value='grey70')
 
 # HLA modifications heatmap -----------------------------------------------
 
@@ -383,6 +389,7 @@ escape.df$MSI <- clin.df[match(escape.df$Patient, clin.df$Patient), 'MSI']
 escape.df <- read.table('~/Dropbox/Code/TCGA/CRC_escape_master_file.txt',stringsAsFactors = F, sep='\t', header=T)
 escape.df <- escape.df[!is.na(escape.df$PDL1),]
 escape.df <- subset(escape.df, FULL_INFO)
+escape.df <- subset(escape.df, Patient %in% goodSamples)
 
 escape.df$Escape <- NA
 escape.df[ (is.na(escape.df$HLA_LOH) & !is.na(escape.df$HLA_MUT) & escape.df$B2M_MUT==0 & !escape.df$PDL1 & !escape.df$CTLA4), 'Escape' ] <- 'HLA_MUT'
@@ -391,12 +398,14 @@ escape.df[ (!is.na(escape.df$HLA_LOH) & is.na(escape.df$HLA_MUT) & escape.df$B2M
 escape.df[ (is.na(escape.df$HLA_LOH) & is.na(escape.df$HLA_MUT) & escape.df$B2M_MUT>0 & !escape.df$PDL1 & !escape.df$CTLA4), 'Escape' ] <- 'B2M_MUT'
 escape.df[ ((is.na(escape.df$HLA_LOH)) & is.na(escape.df$HLA_MUT) & (escape.df$B2M_MUT>0) & (escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'CHECKPOINT_&_B2M'
 escape.df[ (!(is.na(escape.df$HLA_LOH)) & is.na(escape.df$HLA_MUT) & (escape.df$B2M_MUT==0) & (escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'CHECKPOINT_&_LOH'
-escape.df[ ((is.na(escape.df$HLA_LOH)) & !is.na(escape.df$HLA_MUT) & (escape.df$B2M_MUT==0) & (escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'CHECKPOINT_&_HLAMUT'
+escape.df[ ((is.na(escape.df$HLA_LOH)) & !is.na(escape.df$HLA_MUT) & (escape.df$B2M_MUT==0) & (escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'CHECKPOINT_&_HLA'
 escape.df[ (!(is.na(escape.df$HLA_LOH)) & (!is.na(escape.df$HLA_MUT) | (escape.df$B2M_MUT>0)) & !(escape.df$PDL1 | escape.df$CTLA4)), 'Escape' ] <- 'LOH_&_MUT'
 escape.df[ ((!is.na(escape.df$HLA_LOH)) + (!is.na(escape.df$HLA_MUT)) + (escape.df$B2M_MUT>0) + (escape.df$PDL1 | escape.df$CTLA4))>2, 'Escape' ] <- 'COMBINATION'
 escape.df[is.na(escape.df$Escape) & !(is.na(escape.df$AI)),'Escape'] <- 'AI'
 escape.df[is.na(escape.df$Escape),'Escape'] <- 'NONE'
 
+
+#Pie charts
 escape.df.msi <- subset(escape.df, MSI=='MSI-H')
 escape.df.mss <- subset(escape.df, MSI=='MSI-L')
 escape.df.pole <- subset(escape.df, MSI=='POLE')
@@ -419,7 +428,7 @@ pesc2 <- ggplot(data.frame(value=as.numeric(table(escape.df.msi$Escape)),var=nam
   scale_fill_manual(values=c('#7577c9',
                              '#e2b01d','#7abf9f', '#85bb59','#e9813d',
                              '#a77955',
-                             '#d53e4f', '#3288bd',# '#aa4c9a',
+                             '#d53e4f', '#3288bd',
                              'grey80')) +
   labs(fill='Escape mechanism', x='', y='', title=paste0('MSI tumours (n=',nrow(escape.df.msi),')')) + 
   theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=16))
@@ -430,12 +439,73 @@ pesc3 <- ggplot(data.frame(value=as.numeric(table(escape.df.pole$Escape)),var=na
   coord_polar('y', start=0) +
   scale_fill_manual(values=c('#e2b01d','#7abf9f', '#85bb59',
                              '#a77955',
-                             #'#d53e4f',
                              '#aa4c9a',
                              'grey80')) +
   labs(fill='Escape mechanism', x='', y='', title=paste0('POLE tumours (n=',nrow(escape.df.pole),')')) + 
   theme_minimal() + theme(axis.text.x=element_blank(), panel.grid=element_blank(), text=element_text(size=16))
 
+#Bar charts
+
+esc.count <- as.data.frame(t(table(escape.df$Escape, escape.df$MSI)))
+esc.count$Var1 <- factor(esc.count$Var1, levels=c('MSI-L', 'MSI-H', 'POLE'))
+levels(esc.count$Var1) <- c('MSS (n=280)', 'MSI (n=49)', 'POLE (n=10)')
+esc.count <- esc.count[order(esc.count$Var1),]
+esc.count$Var2 <- factor(esc.count$Var2, levels=c('B2M_MUT', 'HLA_MUT', 'CHECKPOINT','CHECKPOINT_&_B2M',
+                                  'CHECKPOINT_&_HLA','CHECKPOINT_&_LOH','HLA_LOH','LOH_&_MUT','COMBINATION','AI','NONE'))
+esc.count$Freq[esc.count$Var1=='MSS (n=280)'] <- esc.count$Freq[esc.count$Var1=='MSS (n=280)']/280
+esc.count$Freq[esc.count$Var1=='MSI (n=49)'] <- esc.count$Freq[esc.count$Var1=='MSI (n=49)']/49
+esc.count$Freq[esc.count$Var1=='POLE (n=10)'] <- esc.count$Freq[esc.count$Var1=='POLE (n=10)']/10
+
+pescb <- ggplot(esc.count, aes(x=Var1, y=Freq ,fill=Var2)) +
+  geom_bar(stat='identity', position='fill', width=0.75) +
+  labs(fill='Escape mechanism', x='', y='Proportion of samples') + 
+  scale_fill_manual(values=c('#7577c9','#3288bd',
+                             '#e2b01d', '#7abf9f', '#85bb59','#e9813d',
+                             '#d53e4f', '#aa4c9a', '#a77955',
+                             '#e1b0b0','grey80')) +
+  theme_bw() + theme(text=element_text(size=16)) + scale_y_continuous(labels=percent_format()) +
+  scale_x_discrete(labels=c('MSS (n=280)', 'MSI (n=49)', 'POLE (n=10)'))
+
+pescbyn <- ggplot(esc.count, aes(x=Var1, y=Freq ,fill=Var3)) +
+  geom_bar(stat='identity', position='fill', width=0.75) +
+  labs(fill='Immune\nescape', x='', y='Proportion of samples') + 
+  scale_fill_manual(values=c('grey70', '#c35071')) +
+  theme_bw() + theme(text=element_text(size=16), axis.title.x=element_blank()) + scale_y_continuous(labels=percent_format()) +
+  scale_x_discrete(labels=c('MSS (n=280)', 'MSI (n=49)', 'POLE (n=10)')) +
+  annotate('text', x=2, y=1.06, label='p = 2.329e-07', size=4.7)
+
+pescb3 <- ggplot(esc.annot, aes(x=Var2, y=Freq ,fill=Var1)) +
+  geom_bar(stat='identity', position='dodge', width=0.75) +
+  labs(fill='Escape mechanism', x='', y='Proportion of samples') + 
+  scale_fill_manual(values=c('#3288bd','#d53e4f', '#e2b01d'), labels=c('MSS (n=280)', 'MSI (n=49)', 'POLE (n=10)')) +
+  theme_bw() + theme(text=element_text(size=16), axis.text.x = element_text(angle=90,vjust=0.5, hjust=1)) + scale_y_continuous(labels=percent_format())
+
+signif <- sapply(unique(escape.df$Escape), function(x) chisq.test(escape.df$MSI, escape.df$Escape==x)$p.value)
+
+esc.annot <- esc.count; esc.annot$Label <- NA
+
+esc.annot$Label[esc.annot$Var2 %in% names(signif)[signif<0.05]] <- '*'
+esc.annot$Label[esc.annot$Var2 %in% names(signif)[signif<0.01]] <- '**'
+esc.annot$Label[esc.annot$Var2 %in% names(signif)[signif<0.001]] <- '***'
+
+pescb2 <- ggplot(esc.annot, aes(x='', y=Freq ,fill=Var2)) + facet_wrap(.~Var1) +
+  geom_bar(stat='identity', position='dodge', width=1) +
+  labs(fill='Escape mechanism', x='', y='Proportion of samples') + 
+  scale_fill_manual(values=c('#7577c9','#3288bd',
+                             '#e2b01d', '#7abf9f', '#85bb59','#e9813d',
+                             '#d53e4f', '#aa4c9a', '#a77955',
+                             '#e1b0b0','grey80')) +
+  theme_bw() + theme(text=element_text(size=16), axis.title.x=element_blank(), axis.ticks.x=element_blank()) +
+  scale_y_continuous(labels=percent_format())
+
+print(chisq.test(escape.df$MSI, grepl('CHECKPOINT',escape.df$Escape))$p.value)
+print(chisq.test(escape.df$MSI, escape.df$Escape))
+
+pescb_signif <- pescb2 + geom_text(aes(x=0.5+(2*as.numeric(Var2)-1)/22,y=Freq+0.005,label=Label)) +
+  geom_signif(y_position=c(0.305), xmin=c(0.5+2/11), xmax=c(0.5+6/11),
+              annotation=c("***"), tip_length=0, size=0.9)
+
+pescb3 + geom_text(aes(y=max(Freq),label=Label))
 
 ######################################################################################
 # Gene expression ---------------------------------------------------------
