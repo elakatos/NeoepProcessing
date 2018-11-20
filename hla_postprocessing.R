@@ -18,7 +18,8 @@ hlaConvert <- function(x){
 
 nnGrep <- function(x){
   i <- gregexpr("HLA", x) #find the two HLAs mentioned
-  origHLA <- substr(x, i[[1]][1], i[[1]][1]+9)
+  origHLA <- substr(x, i[[1]][1], i[[1]][1]+10)
+  origHLA <- gsub(' ', '', origHLA)
   nn <- substr(x, i[[1]][2], i[[1]][2]+9)
   j <- regexpr("[0-9]\\.[0-9][0-9][0-9]", x) #match the format of distance
   dist <- substr(x, j, j+4)
@@ -381,6 +382,7 @@ for (pat in unique(lohhla.loh$region)){ escape.df[escape.df$Patient==pat, 'HLA_L
 for (pat in unique(muthla.signif$individual)){ escape.df[escape.df$Patient==pat, 'HLA_MUT'] <- paste0(muthla.signif[muthla.signif$individual==pat,'contig'], collapse=',') }
 
 escape.df$B2M_MUT <- clin.df[match(escape.df$Patient, clin.df$Patient), 'B2M']
+escape.df$WDFY4_MUT <- clin.df[match(escape.df$Patient, clin.df$Patient), 'WDFY4']
 escape.df$PDL1 <- exprpdl[match(gsub('-', '.',escape.df$Patient), names(exprpdl))] > mean(exprpdl.norm)+2*sd(exprpdl.norm)
 escape.df$CTLA4 <- exprctla[match(gsub('-', '.',escape.df$Patient), names(exprctla))] > mean(exprctla.norm)+2*sd(exprctla.norm)
 escape.df$CYT <- cyts[match(gsub('-', '.',escape.df$Patient), names(cyts))]
@@ -455,6 +457,7 @@ esc.count$Var2 <- factor(esc.count$Var2, levels=c('B2M_MUT', 'HLA_MUT', 'CHECKPO
 esc.count$Freq[esc.count$Var1=='MSS (n=280)'] <- esc.count$Freq[esc.count$Var1=='MSS (n=280)']/280
 esc.count$Freq[esc.count$Var1=='MSI (n=49)'] <- esc.count$Freq[esc.count$Var1=='MSI (n=49)']/49
 esc.count$Freq[esc.count$Var1=='POLE (n=10)'] <- esc.count$Freq[esc.count$Var1=='POLE (n=10)']/10
+esc.count$Var3 <- !(esc.count$Var2 %in% c('NONE', 'AI'))
 
 pescb <- ggplot(esc.count, aes(x=Var1, y=Freq ,fill=Var2)) +
   geom_bar(stat='identity', position='fill', width=0.75) +
@@ -466,13 +469,15 @@ pescb <- ggplot(esc.count, aes(x=Var1, y=Freq ,fill=Var2)) +
   theme_bw() + theme(text=element_text(size=16)) + scale_y_continuous(labels=percent_format()) +
   scale_x_discrete(labels=c('MSS (n=280)', 'MSI (n=49)', 'POLE (n=10)'))
 
+chisq.test(escape.df$Escape %in% c('NONE', 'AI'), escape.df$MSI)
 pescbyn <- ggplot(esc.count, aes(x=Var1, y=Freq ,fill=Var3)) +
   geom_bar(stat='identity', position='fill', width=0.75) +
   labs(fill='Immune\nescape', x='', y='Proportion of samples') + 
   scale_fill_manual(values=c('grey70', '#c35071')) +
-  theme_bw() + theme(text=element_text(size=16), axis.title.x=element_blank()) + scale_y_continuous(labels=percent_format()) +
+  theme_bw() + theme(text=element_text(size=16), axis.title.x=element_blank()) + scale_y_continuous(labels=percent_format(), limits=c(0,1.08)) +
   scale_x_discrete(labels=c('MSS (n=280)', 'MSI (n=49)', 'POLE (n=10)')) +
-  annotate('text', x=2, y=1.06, label='p = 2.329e-07', size=4.7)
+  geom_signif(y_position=c(1.03), xmin=c(1), xmax=c(3),
+              annotation=c(1.398e-07), tip_length=0, size=0.5)
 
 pescb3 <- ggplot(esc.annot, aes(x=Var2, y=Freq ,fill=Var1)) +
   geom_bar(stat='identity', position='dodge', width=0.75) +
@@ -488,22 +493,26 @@ esc.annot$Label[esc.annot$Var2 %in% names(signif)[signif<0.05]] <- '*'
 esc.annot$Label[esc.annot$Var2 %in% names(signif)[signif<0.01]] <- '**'
 esc.annot$Label[esc.annot$Var2 %in% names(signif)[signif<0.001]] <- '***'
 
-pescb2 <- ggplot(esc.annot, aes(x='', y=Freq ,fill=Var2)) + facet_wrap(.~Var1) +
+pescb2 <- ggplot(esc.annot, aes(x='', y=Freq ,fill=Var2)) + facet_wrap(Var1~.,nrow=3) +
   geom_bar(stat='identity', position='dodge', width=1) +
   labs(fill='Escape mechanism', x='', y='Proportion of samples') + 
   scale_fill_manual(values=c('#7577c9','#3288bd',
                              '#e2b01d', '#7abf9f', '#85bb59','#e9813d',
                              '#d53e4f', '#aa4c9a', '#a77955',
-                             '#e1b0b0','grey80')) +
+                             '#e1b0b0','grey80'),
+                    labels=c('B2M mut','HLA mut',
+                             'Checkpoint', 'Checkpoint & B2M', 'Checkpoint & HLA','Checkpoint & LOH',
+                             'LOH','LOH & HLA/B2M', 'Combination', 'Allelic imbalance', 'NONE')) +
   theme_bw() + theme(text=element_text(size=16), axis.title.x=element_blank(), axis.ticks.x=element_blank()) +
   scale_y_continuous(labels=percent_format())
 
 print(chisq.test(escape.df$MSI, grepl('CHECKPOINT',escape.df$Escape))$p.value)
 print(chisq.test(escape.df$MSI, escape.df$Escape))
 
-pescb_signif <- pescb2 + geom_text(aes(x=0.5+(2*as.numeric(Var2)-1)/22,y=Freq+0.005,label=Label)) +
-  geom_signif(y_position=c(0.305), xmin=c(0.5+2/11), xmax=c(0.5+6/11),
-              annotation=c("***"), tip_length=0, size=0.9)
+pescb_signif <- pescb2 + facet_wrap(.~Var1,nrow=3) + geom_text(aes(x=0.5+(2*as.numeric(Var2)-1)/22,y=Freq+0.005,label=Label)) +
+  geom_signif(y_position=c(0.34), xmin=c(0.5+2/11), xmax=c(0.5+6/11),
+              annotation=c("***"), tip_length=0, size=0.5) + theme(text=element_text(size=14), legend.text=element_text(size=11)) +
+  scale_y_continuous(breaks=c(0, 0.15, 0.3), labels=percent_format(), limits=c(0, 0.38))
 
 pescb3 + geom_text(aes(y=max(Freq),label=Label))
 

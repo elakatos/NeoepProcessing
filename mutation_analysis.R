@@ -259,11 +259,11 @@ loh.neoeps.df$ID <- apply(loh.neoeps.df,1, function(x) paste0(x['Sample'],':',x[
 
 
 pLines <- ggplot(loh.neoeps.df, aes(x=Subclone, y=LostHLARatio, group=ID, color=Allele)) +
-  geom_line(size=1.2) + geom_point(size=2.5) + scale_x_discrete(expand=c(0.1,0.1)) +
-  scale_y_continuous(labels=percent) +
+  geom_line(size=1.2) + geom_point(size=2.5) + scale_x_discrete(expand=c(0.1,0.1), labels=c('LOH', 'no LOH')) +
+  scale_y_continuous(labels=c('15%','25%'), breaks=c(0.15, 0.25), limits=c(0.1,0.315)) +
   scale_color_manual(values=c('#7577c9','#51a77f','#e9813d')) +
-  labs(y='Percentage of subclonal neoantigens bound to\nlost allele/ total neoantigens', x='Subclone') + 
-  theme_bw() + theme(text=element_text(size=16))
+  labs(y='Percentage of subclonal\nneoantigens bound to lost allele', x='Subclone') + 
+  theme_bw() + theme(text=element_text(size=12))
 
 loh.bound.df <- loh.neoeps.df[,c('ID', 'BoundToLost', 'BoundToKept', 'Subclone')]
 loh.bound.df <- loh.bound.df[order(loh.bound.df$Subclone,decreasing=T),]
@@ -309,7 +309,7 @@ dir <- '../TCGA_CRC'
 prefix <- 'Total'
 epTable <- read.table(paste0(dir, '/Neopred_results/',prefix,'.neoantigens.txt'), header=F,
                       sep = '\t',stringsAsFactors = F, fill=T)
-names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom', 'Start',
+names(epTable) <- c('Sample', 'LineID', 'Chrom', 'Start',
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
                     'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score', 'Affinity', 'Rank', 'Cand', 'BindLevel')
 
@@ -322,8 +322,9 @@ recoTable <- read.table('../TCGA_CRC/Neopred_results/PredictedRecognitionPotenti
 
 recoTable$AntigenID <- apply(recoTable, 1,function(x) paste0(x['Sample'], ':',x['Mutation'], ':',x['MutantPeptide'] ) )
 
-recoTable.imm <- subset(recoTable, NeoantigenRecognitionPotential>1e-2)
+recoTable.imm <- subset(recoTable, NeoantigenRecognitionPotential>1e-1)
 
+epTable <- subset(epTable, Sample %in% goodSamples)
 epTable.imm <- subset(epTable, AntigenID %in% recoTable.imm$AntigenID)
 
 #epTable <- subset(epTable, Affinity<200)
@@ -444,7 +445,6 @@ allMutVAFs <- read.table('~/Dropbox/Code/TCGA/CRC_exonicVAF_master_file.txt',
 allMutVAFs$mutID <- apply(allMutVAFs, 1,function(x) paste0(x['Sample'], ':',x['LineID'] ) )
 
 #filter samples out by purity+ploidy
-goodSamples <- gsub('.tumour', '', row.names(subset(ploidy.df, tumorPurity>0.4 & tumorPloidy < 3.6)))
 
 allEpVAFs <- subset(allMutVAFs, mutID %in% epTable.imm$mutID)
 
@@ -456,14 +456,34 @@ mepvaf.df <- na.omit(data.frame(value=maxEpVAFs, ind=1:length(maxEpVAFs),
                         tc = tcavg[match(names(maxEpVAFs), gsub('\\.', '-',names(tcavg)))],
                         cyt = cyts[match(names(maxEpVAFs), gsub('\\.', '-',names(cyts)))]))
 
-orderRows <- order(mepvaf.df[mepvaf.df$value==1, 'cyt'])
+orderRows <- order(mepvaf.df[mepvaf.df$value==1, 'tc'])
 mepvaf.df.ord <- rbind(mepvaf.df[orderRows,], mepvaf.df[mepvaf.df$value!=1,])
 mepvaf.df.ord$ind <- 1:nrow(mepvaf.df.ord)
 
-pmaxvaf.tcga <- ggplot(mepvaf.df.ord, aes(x=ind, y=value, colour=cyt/2.1293)) +
+mepvaf.df.ord$Escape <- ifelse(escape.df[match(row.names(mepvaf.df.ord), escape.df$Patient),'Escape'] %in% c('NONE', 'AI'), 'No escape', 'Escape')
+mepvaf.df.ord$MSI <- clin.df[match(row.names(mepvaf.df.ord), clin.df$Patient),'MSI']
+
+#ggplot(mepvaf.df.ord, aes(x=ind, y=value, colour=(cyt-0.1999)/(2.1293-0.1999))) +
+
+pmaxvaf.tcga <- ggplot(mepvaf.df.ord, aes(x=ind, y=value, colour=(tc-0.2952)/(1.9588-0.2952))) +
   geom_point(alpha=0.8, size=3) +
   scale_y_log10(labels=percent)  +
   immColor +
+  labs(x='TCGA CRC sample', y='Proportion of cells sharing the most common neoantigen', colour='Normalised\nT-cell avg') +
+  theme_bw() + theme(text=element_text(size=16), axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+
+pmaxvaf.div <- ggplot(mepvaf.df.ord, aes(x=ind, y=value, colour=(tc-0.2952)/(1.9588-0.2952))) +
+  geom_point(alpha=0.8, size=3) +
+  scale_y_log10(labels=percent)  +
+  scale_colour_distiller(palette='YlGnBu', direction=1) +
+  labs(x='TCGA CRC sample', y='Proportion of cells sharing the most common neoantigen', colour='Normalised\nT-cell avg') +
+  theme_bw() + theme(text=element_text(size=14), axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+  facet_wrap(.~Escape)
+
+pmaxvaf.tcga2 <- ggplot(mepvaf.df, aes(x=(tc-0.2952)/(1.9588-0.2952), y=value, colour=(tc-0.2952)/(1.9588-0.2952))) +
+  geom_point(alpha=0.8, size=3) +
+  scale_colour_distiller(palette='YlGnBu', direction=1) +
   labs(x='TCGA CRC sample', y='Proportion of cells sharing the most common neoantigen', colour='Normalised\nT-cell avg') +
   theme_bw() + theme(text=element_text(size=16), axis.text.x = element_blank(), axis.ticks.x = element_blank())
 
@@ -477,13 +497,200 @@ for (samp in goodSamples){
   vaftmp <- subset(allMutVAFs, Sample == samp)
   escape.df[escape.df$Patient==samp,'Total_neoep'] <- sum((vaftmp$mutID %in% epTable.imm$mutID), na.rm=T)
   escape.df[escape.df$Patient==samp,'Subclonal_neoep'] <- sum((vaftmp$mutID %in% epTable.imm$mutID) & (vaftmp$CCF < 0.6) & (vaftmp$CCF > 0.3), na.rm=T)
+  escape.df[escape.df$Patient==samp,'Subclonal_all'] <- sum((vaftmp$CCF < 0.6) & (vaftmp$CCF > 0.3), na.rm=T)
 }
 
 x <- subset(escape.df, MSI=='MSI-H')
+x$Subclonal_neoep <- x$Subclonal_neoep/x$Subclonal_all
 
 psc <- ggplot(x, aes(x=(Escape %in% c('NONE','AI')), y=Subclonal_neoep, fill=(Escape %in% c('NONE','AI')))) +
-  geom_boxplot() + stat_compare_means(label.x.npc = 'centre') + guides(fill=F) +
-  labs(y='High subclonal neantigens (0.3 < CCF < 0.6)', x='Immune escape') + scale_x_discrete(labels=c('Yes (n=42)', 'No (n=7)'))
+  geom_boxplot() + #geom_violin() + geom_boxplot(fill='grey80', width=0.05) +
+  stat_compare_means(comparisons=list(c('FALSE', 'TRUE')),label.x.npc = 'centre', method.args= list(alternative='greater')) + guides(fill=F) +
+  scale_fill_manual(values=c('#c35071', 'grey70')) + scale_x_discrete(labels=c('Yes (n=42)', 'No (n=7)')) +
+  labs(y='Neoantigens in large subclone', x='Immune escape') +
+  theme_bw() + theme(text=element_text(size=12)) + scale_y_continuous(limits=c(0, 75))
+
+
+# Or the same thing for WDFY4 mutation?
+
+x <- subset(escape.df, Escape %in% c('AI','NONE'))
+x$Subclonal_neoep <- x$Subclonal_neoep/x$Subclonal_all
+
+ggplot(x, aes(x=(WDFY4_MUT>0), y=Subclonal_neoep, fill=(WDFY4_MUT>0))) +
+  geom_boxplot() + #geom_violin() + geom_boxplot(fill='grey80', width=0.05) +
+  stat_compare_means(comparisons=list(c('FALSE', 'TRUE')),label.x.npc = 'centre', method.args= list(alternative='greater')) + guides(fill=F) +
+  scale_fill_manual(values=c('#c35071', 'grey70')) +
+  theme_bw() + theme(text=element_text(size=12))
+
+
+
+# Cumulative antigenicity/VAF ---------------------------------------------
+# Something to distinguish CRC samples over a scale ?
+
+recoTable.imm$mutID <- epTable.imm[match(recoTable.imm$AntigenID,epTable.imm$AntigenID),'mutID']
+recoTable.imm$CCF <- allMutVAFs[match(recoTable.imm$mutID, allMutVAFs$mutID),'CCF']
+recoTable.imm$CCF[recoTable.imm$CCF > 1] <- 1
+recoTable.imm <- subset(recoTable.imm,Sample %in% goodSamples)
+
+noesc <- escape.df[escape.df$Escape %in% c('AI', 'NONE'),'Patient']
+x <- subset(recoTable.imm, Sample == 'TCGA-CM-5861')
+y <- subset(recoTable.imm, Sample == 'TCGA-F4-6856')
+ggplot(recoTable.imm, aes(x=NeoantigenRecognitionPotential*CCF)) + stat_ecdf() +
+  scale_x_log10() + stat_ecdf(data=y, aes(x=NeoantigenRecognitionPotential)) +
+  theme_bw()
+
+recoTable.imm$Esc <- !(recoTable.imm$Sample %in% noesc)
+
+ggplot(recoTable.imm[!recoTable.imm$Esc,], aes(x=NeoantigenRecognitionPotential,y=CCF, colour=Esc)) + geom_point(alpha=0.25) +
+  scale_x_log10()
+
+# Max antigenic's VAF
+recoTable.imm <- subset(recoTable.imm, CCF > 0.25)
+
+maxAnt <- data.frame(Sample <- unique(recoTable.imm$Sample))
+maxAnt$Ant <- sapply(maxAnt$Sample, function(s) {x <- subset(recoTable.imm, Sample == s);
+max(x$NeoantigenRecognitionPotential)})
+maxAnt$CCF <- sapply(maxAnt$Sample, function(s) {x <- subset(recoTable.imm, Sample == s);
+x[which.max(x$NeoantigenRecognitionPotential),'CCF']})
+#maxAnt$CCF2 <- sapply(maxAnt$Sample, function(s) {x <- subset(recoTable.imm, Sample == s);
+#y <- head(x[order(-x$NeoantigenRecognitionPotential),],3); })
+maxAnt$Esc <- escape.df[match(maxAnt$Sample, escape.df$Patient),'Escape']
+maxAnt$tc <- tcavg[match(maxAnt$Sample, gsub('\\.', '-',names(tcavg)))]
+
+pmaxantVAF <- ggplot(maxAnt, aes(x=tc, y=CCF, colour=tc)) + geom_point(size=3) +
+  scale_colour_distiller(palette='YlGnBu', direction =1) +
+  labs(colour='T-cell avg', x='T-cell average', y='CCF of most antigenic mutation') +
+  theme_bw() + theme(text=element_text(size=14)) #+
+facet_wrap(.~!(Esc %in% c('NONE','AI')))
+ggplot(maxAnt, aes(x=Ant, y=CCF, colour=tc)) + geom_point() +
+  scale_colour_distiller(palette='YlGnBu', direction =1) + scale_x_log10()
+
+
+# Number of clonal neoantigens
+
+recoTable.clonal <- subset(recoTable.imm, CCF <1.1)
+
+numClonal <- data.frame(Sample = intersect(goodSamples,recoTable$Sample))
+numClonal$Count <- sapply(numClonal$Sample, function(s) sum(recoTable.clonal$Sample==s))
+numClonal$tc <- tcavg[match(numClonal$Sample, gsub('\\.', '-',names(tcavg)))]
+numClonal$cyt <- cyts[match(numClonal$Sample, gsub('\\.', '-',names(cyts)))]
+
+pnumclon <- ggplot(numClonal, aes(x=tc, y=log10(Count+1), colour=tc)) + geom_point(size=3) +
+  scale_colour_distiller(palette='YlGnBu', direction =1) +
+  scale_y_continuous(breaks=c(0, 1.1, 2.1), labels=c(0, 10, 100)) +
+  labs(colour='T-cell avg', x='T-cell average', y='Number of clonal\nantigenic mutations') +
+  theme_bw() + theme(text=element_text(size=14)) 
+
+numClonal$clonalBurden <- ifelse(numClonal$Count < 10, 'low', 'high')
+ggplot(numClonal, aes(x=clonalBurden, y=tc)) + geom_violin() +
+  stat_compare_means(comparisons=list(c('low','high')))
+
+numClonal$cyt2 <- cut(numClonal$cyt, c(0, 0.757, 0.9601, 1.2373, 3))
+numClonal$tc2 <- cut(numClonal$tc, c(0, 0.7479, 0.9515, 1.1722, 2))
+
+p1 <- ggplot(na.omit(numClonal), aes(x=log10(Count+1), y=..scaled.., fill=tc2)) + geom_density(alpha=0.9, adjust=0.9) +
+  facet_wrap(.~tc2) +
+  scale_fill_brewer(palette='YlGnBu') +
+  labs(x='log10((# of clonal antigenic mutations) + 1)', y='Density', fill='T-cell average') +
+  theme_bw() + theme(strip.text.x = element_blank(), text=element_text(size=14))
+
+ggplot(na.omit(numClonal), aes(x=log10(Count+1), y=..scaled..)) + geom_density(alpha=0.9, fill='grey80', adjust=0.9) +
+  labs(x='log10((# of clonal antigenic mutations) + 1)', y='Density') +
+  theme_bw() + theme(strip.text.x = element_blank(), text=element_text(size=14))
+
+
+numClonal2 <- numClonal[numClonal$Sample %in% escape.df$Patient,]
+numClonal2$MSI <- escape.df[match(numClonal2$Sample,escape.df$Patient), 'MSI']
+numClonal2$escape <- escape.df[match(numClonal2$Sample,escape.df$Patient), 'Escape']
+numClonal2$escape <- numClonal2$escape %in% c('AI', 'NONE')
+
+numClonal2$tc2 <- cut(numClonal2$tc, quantile(numClonal2$tc, prob=seq(0,1,length=5)))
+
+p <- ggplot(na.omit(numClonal2), aes(x=log10(Count+1), y=..scaled.., fill=tc2, colour=!escape)) + geom_density(alpha=0.5, adjust=0.9) +
+  facet_wrap(.~tc2, nrow=2) +
+  scale_fill_brewer(palette='YlGnBu') + scale_colour_manual(values=c('grey70', '#c35071'), labels=c('No', 'Yes')) +
+  labs(x='log10((# of antigenic mutations) + 1)', y='Density', fill='T-cell average', colour='Escape') +
+  scale_y_continuous(breaks=c(0, 0.5, 1)) +
+  theme_bw() + theme(strip.text.x = element_blank(), text=element_text(size=14))
+
+ggplot(na.omit(numClonal2), aes(x=!escape, y=Count, fill=!escape)) + geom_violin(adjust=0.9) +
+  theme_bw() + theme(strip.text.x = element_blank(), text=element_text(size=14)) + stat_compare_means() +
+facet_wrap(.~tc2)
+
+#nc.dens <- density(log10(na.omit(numClonal[numClonal$tc2=='(1.17,2]',])$Count+1))
+nc.dens <- density(log10(numClonal$Count+1))
+pnumAnt.dens <- ggplot(data.frame(x=nc.dens$x, y=nc.dens$y), aes(x=x,y=y)) + geom_line() +
+  geom_segment(aes(xend = x, yend = 0, colour = x)) +
+  scale_color_gradientn(colours=c('darkblue','skyblue4', 'grey80','darksalmon', 'darkred'),
+                        values=c(0, 0.2, 0.4, 0.7, 1), limits=c(0,2.571)) +
+  labs(x='log10((# of clonal antigenic mutations) + 1)', y='Density') +
+  theme_bw() + theme(strip.text.x = element_blank(), text=element_text(size=14)) +
+  scale_x_continuous(limits=c(0,2.571))
+
+
+ggplot(na.omit(numClonal), aes(x=log10(Count+1))) + geom_histogram(alpha=0.9, fill='grey80') +
+  labs(x='log10((# of clonal antigenic mutations) + 1)', y='Density') +
+  theme_bw() + theme(strip.text.x = element_blank(), text=element_text(size=14))
+
+# Something something magic on TCGA data!
+
+
+
+# KS testing of neoepitopes and all mutations in all TCGA samples
+
+ks.tcga.df <- data.frame(matrix(vector(), ncol=9)); names(ks.tcga.df)<- c('Sample', 'Total', 'Total_ep', 'KS_all', 'KS_all_VAF',
+                                                                          'Total_sub', 'Total_sub_ep', 'KS_sub', 'KS_sub_VAF')
+
+for (samp in goodSamples){
+  vaftmp <- subset(allMutVAFs, Sample == samp & CCF < 1)
+  eptmp <- subset(vaftmp, mutID %in% epTable.imm$mutID)
+  if (nrow(eptmp)<2){
+    print(samp)
+    next
+  }
+  vaftmp.sub <- subset(vaftmp, (CCF < 0.6) & (CCF > 0.3))
+  eptmp.sub <- subset(eptmp, (CCF < 0.6) & (CCF > 0.3))
+  if (nrow(eptmp.sub)<2 ){
+    ks.tcga.df[nrow(ks.tcga.df)+1,] <- c(samp, nrow(vaftmp), nrow(eptmp), ks.test(eptmp$CCF, vaftmp$CCF)$p.value, ks.test(eptmp$VAF,vaftmp$VAF)$p.value,
+                                         nrow(vaftmp.sub), nrow(eptmp.sub), NA, NA )
+    
+  }else{
+  ks.tcga.df[nrow(ks.tcga.df)+1,] <- c(samp, nrow(vaftmp), nrow(eptmp), ks.test(eptmp$CCF, vaftmp$CCF)$p.value, ks.test(eptmp$VAF,vaftmp$VAF)$p.value,
+                                      nrow(vaftmp.sub), nrow(eptmp.sub), ks.test(eptmp.sub$CCF, vaftmp.sub$CCF)$p.value, ks.test(eptmp.sub$VAF,vaftmp.sub$VAF)$p.value )
+  }
+}
+
+# Neoantigen burden vs driver mutation burden
+
+driverGenes <- scan('~/Downloads/Driver_gene_list_198_Science_Review_newdNdSgenenames.txt', what='character()')
+
+allDrivers <- data.frame(matrix(vector(), ncol=4))
+
+for(sample in unique(epTable$Sample)){
+sampleFileEx <- paste0(dir, '/avannotated/',sample,'.avannotated.exonic_variant_function')
+exonic <- readExonicFile(sampleFileEx)
+exonic$GeneName <- sapply(exonic$MutInfo, function(x) unlist(strsplit(x, ':'))[1])
+exonic.tmp <- subset(exonic, GeneName %in% driverGenes)[,c('GeneName','MutType','Region_0')]
+if (nrow(exonic.tmp)>0){
+  exonic.tmp$Sample <- sample
+allDrivers <- rbind(exonic.tmp, allDrivers)
+}
+}
+
+allDrivers.sub <- allDrivers[allDrivers$MutType != 'synonymous SNV',]
+allDrivers.sub <- allDrivers.sub[!duplicated(allDrivers.sub[,c('Sample','GeneName')]),]
+
+burdens.df <- data.frame(Sample=unique(epTable$Sample))
+burdens.df$driverCount <- sapply(burdens.df$Sample, function(x) sum(allDrivers.sub$Sample==x))
+burdens.df$neoepCount <- sapply(burdens.df$Sample, function(x) sum(epTable.imm$Sample==x))
+burdens.df$MSI <- clin.df[match(burdens.df$Sample,clin.df$Patient),'MSI']
+burdens.df$Esc <- !(escape.df[match(burdens.df$Sample,escape.df$Patient),'Escape'] %in% c('NONE', 'AI'))
+
+ggplot(burdens.df, aes(x=driverCount, y=neoepCount, colour=Esc)) + geom_point(size=2,alpha=0.8) +
+  theme_bw() +
+  scale_y_continuous(trans='log1p') + scale_x_continuous(trans='log1p')
+
+#Esc %in% c('NONE','AI')
 
 # VAF vs epitope-strength -------------------------------------------------
 

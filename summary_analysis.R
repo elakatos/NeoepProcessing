@@ -138,6 +138,13 @@ names(epTable) <- c('Sample', getRegionNames(ncol(epTable)-23), 'LineID', 'Chrom
                     'RefAll', 'AltAll', 'Gene', 'pos', 'hla', 'peptide', 'core', 'Of', 'Gp',
                     'Gl', 'Ip', 'Il', 'Icore', 'Identity', 'Score','Affinity', 'Rank', 'Cand', 'BindLevel')
 #Extra filtering
+epTable$AntigenID <- apply(epTable, 1,function(x) paste0(x['Sample'], ':',x['Identity'], ':',x['peptide'] ) )
+recoTable <- read.table('~/CRCdata/TCGA_CRC/Neopred_results/PredictedRecognitionPotentials.txt',
+                        stringsAsFactors = F, header=T)
+recoTable$AntigenID <- apply(recoTable, 1,function(x) paste0(x['Sample'], ':',x['Mutation'], ':',x['MutantPeptide'] ) )
+recoTable.imm <- subset(recoTable, NeoantigenRecognitionPotential>1e-1)
+epTable.imm <- subset(epTable, AntigenID %in% recoTable.imm$AntigenID)
+
 epTable <- subset(epTable.imm, Sample %in% goodSamples)
 
 summaryTable <- processSummaryOfSampleSet(dir, epTable, prefix)
@@ -183,9 +190,8 @@ ylb <- 'TOTAL neo-epitopes'
 summaryTable.sub$MutRatio <- summaryTable.sub$Total_MUT
 ylb <- 'TOTAL somatic missense mutations'
 
-p0 <- ggplot(summaryTable.sub, aes(x=Total_MUT, y=MutRatio, colour=as.factor(MSI))) + geom_point(size=2) + scale_x_continuous(trans='log10') +
-  stat_cor(label.x.npc = 'centre', size=5) + stat_cor(mapping=aes(x=Total_MUT,y=MutRatio,colour=''),label.x.npc='centre', label.y.npc='bottom', size=5) +
-  scale_color_manual(values=c('black', 'darkorange3', 'darkseagreen4')) +
+p0 <- ggplot(summaryTable.sub, aes(x=Total_MUT, y=MutRatio, colour=MSI)) + geom_point(size=2) + scale_x_continuous(trans='log10') +
+  scale_color_manual(values=c('black', 'darkorange3','darkseagreen4')) +
   labs(colour='Hypermutated', x='Total somatic missense mutations', y=ylb) + theme_bw() + guides(color=F)
 p1 <- ggplot(summaryTable.sub, aes(x=MSI, y=MutRatio, fill=as.factor(MSI))) + geom_violin() +
   stat_compare_means(comparisons = list(c('MSI-H', 'MSI-L')), aes(label = paste0("p = ", ..p.format..))) +
@@ -331,7 +337,7 @@ recoTable <- read.table('~/CRCdata/TCGA_CRC/Neopred_results/PredictedRecognition
 
 recoTable$AntigenID <- apply(recoTable, 1,function(x) paste0(x['Sample'], ':',x['Mutation'], ':',x['MutantPeptide'] ) )
 
-recoTable.imm <- subset(recoTable, NeoantigenRecognitionPotential>1e-4)
+recoTable.imm <- subset(recoTable, NeoantigenRecognitionPotential>1e-2)
 
 epTable.imm <- subset(epTable, AntigenID %in% recoTable.imm$AntigenID)
 
