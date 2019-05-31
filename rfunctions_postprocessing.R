@@ -3,6 +3,9 @@ library(ggpubr)
 library(scales)
 library(reshape2)
 
+
+# Neoantigen summary functions --------------------------------------------
+
 colReds = c('#fee0d2','#fc9272','#de2d26')
 colBlues = c('#deebf7','#9ecae1','#3182bd')
 
@@ -161,3 +164,59 @@ processSummaryOfSampleSet <- function(dir, epTable, prefix){
 }
 
 
+# HLA processing functions ------------------------------------------------
+
+# Create a label for filtering depending on output of CN measurement
+labelHLAAI <- function(line){
+  if (is.na(line$HLA_type1copyNum_withBAFBin_upper)){return(NaN)}
+  lab <- 'none'
+  if (line$PVal_unique<0.01){lab <- 'AI'}
+  if ((line$HLA_type1copyNum_withBAFBin_lower>1.5) & (line$HLA_type2copyNum_withBAFBin_lower > 1.5 ))
+  { lab <- 'gain'}
+  if ( (lab=='AI') & (line$HLA_type1copyNum_withBAFBin_upper< 0.7) & (line$HLA_type1copyNum_withBAFBin < 0.5 ))
+  { lab <- 'LOH'}
+  if ((lab=='AI') & (line$HLA_type2copyNum_withBAFBin < 0.5) & (line$HLA_type2copyNum_withBAFBin_upper < 0.7 ))
+  { lab <- 'LOH'}
+  return(lab)
+}
+
+# Create a label for filtering depending on the reliability
+labelHLArel <- function(line, mincov){
+  if (is.na(line$HLA_type1copyNum_withBAFBin_upper)){return(F)}
+  lab <- T
+  confint1 <- line$HLA_type1copyNum_withBAFBin_upper - line$HLA_type1copyNum_withBAFBin_lower
+  confint2 <- line$HLA_type2copyNum_withBAFBin_upper - line$HLA_type2copyNum_withBAFBin_lower
+  if ( ((confint1>1.5) & (line$HLA_type1copyNum_withBAFBin<1.5) & (line$HLA_type1copyNum_withBAFBin>0)) |  ((confint2>1.5) & (line$HLA_type2copyNum_withBAFBin<1.5) & (line$HLA_type2copyNum_withBAFBin>0)) )
+  { lab <- F}
+  if ( (confint1>6) | (confint2>6))
+  {lab <- F}
+  if ( ((abs(line$HLA_type1copyNum_withBAFBin)<0.4) & (line$HLA_type1copyNum_withBAFBin_upper>0.8)) |   ((abs(line$HLA_type2copyNum_withBAFBin)<0.4) & (line$HLA_type2copyNum_withBAFBin_upper>0.8)))
+  {lab <- F}
+  if ( line$numMisMatchSitesCov < mincov )
+  {lab <- F}
+  return(lab)
+}
+
+# Evaluate and filter results of LOHHLA output
+analyseLohhla <- function(lohhla.master, clin.df){
+  lohhla.signif <- lohhla.master[!is.na(lohhla.master$PVal_unique),]
+  lohhla.signif <- lohhla.signif[lohhla.signif$PVal_unique<0.01,]
+  
+  lohhla.patients <- data.frame(row.names = unique(lohhla.master$region))
+  lohhla.patients$ID <- sapply(row.names(lohhla.patients), function(x) substr(x,1,12))
+  lohhla.patients$AI <- sapply(row.names(lohhla.patients), function(x) x %in% lohhla.signif$region)
+  lohhla.patients$CN <- sapply(row.names(lohhla.patients),
+                               function(x) lohhla.master[lohhla.master$region==x, 'Label'][1]!='NaN')
+  lohhla.patients$LOH <- sapply(row.names(lohhla.patients),
+                                function(x) ('LOH' %in% lohhla.master[lohhla.master$region==x, 'Label']))
+  lohhla.patients$LOSS <- sapply(row.names(lohhla.patients),
+                                 function(x) ('loss' %in% lohhla.master[lohhla.master$region==x, 'Label']))
+  lohhla.patients$NORM <- sapply(row.names(lohhla.patients),
+                                 function(x) sum(lohhla.master[lohhla.master$region==x, 'Label']!='none')==0)
+  lohhla.patients$HIGH <- sapply(row.names(lohhla.patients),
+                                 function(x) ('gain' %in% lohhla.master[lohhla.master$region==x, 'Label']))
+  
+  lohhla.patients$MSI <- clin.df[match(lohhla.patients$ID, clin.df$Patient), 'MSI']=='MSI-H'
+  lohhla.patients$HYP <- clin.df[match(lohhla.patients$ID, clin.df$Patient), 'Hypermut']==1
+  return(list(sig=lohhla.signif, pat=lohhla.patients))
+}

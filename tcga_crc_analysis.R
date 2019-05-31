@@ -1,5 +1,7 @@
 
-source('~/Software/NeoepProcessing/rfunctions_postprocessing.R')
+library(rstudioapi)
+setwd(dirname(getActiveDocumentContext()$path))
+source('rfunctions_postprocessing.R')
 
 ############################################################################
 # Read in patient information ---------------------------------------------
