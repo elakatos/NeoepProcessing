@@ -1,11 +1,16 @@
-from numpy import random
+#!/usr/bin/env python
 
+'''
+Generate random mutations of the proteome and sample HLA types to compile random candidate mutation sets
+@Author: Eszter Lakatos (e.lakatos@qmul.ac.uk)
+'''
+
+from numpy import random
 
 def generateAAsequence(outFileName):
     aaOneLetter='GPAVLIMCFYWHKRQNEDST'
     for fileInd in range(20):
         mutNum = random.randint(100, 800)
-        #outFileName = '/data/BCI-EvoCa2/eszter/Neoepitopes/Random/random_epitopes_' + str(fileInd) + '.fasta'
         with open(outFileName, 'w') as outFile:
             for i in range(mutNum):
                 fastaLine = ''.join(random.choice(list(aaOneLetter), 19, replace=True))
@@ -42,7 +47,6 @@ def sampleProteome(protFastaName, outName, outNameNormal):
     wtFile = open(outNameNormal, 'w')
     with open(outName, 'w') as outFile:
         mutNum = random.randint(100, 800)
-        #mutNum = 10
         for i in range(mutNum):
             pID = random.randint(0, N)
             prot = proteome[pID].rstrip('\n')
