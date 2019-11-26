@@ -32,7 +32,7 @@ nnGrep <- function(x){
 }
 
 #Read in, filter out possibly incorrect predictions and convert to netMHCpan format
-hlaFile <- '~/TCGA/hlatypes_total_CRC.txt'
+hlaFile <- '~/CRCdata/TCGA_UCEC/hlatypes.txt'
 
 hlasOrig <- read.table(hlaFile, sep='\t', header=T, row.names=1, stringsAsFactors = F)
 hlasCorrect <- subset(hlasOrig, !( (HLA.A_1=='hla_a_01_01_01_01') & (is.na(HLA.A_2)) & (HLA.B_1== 'hla_b_07_02_01') & (is.na(HLA.B_2)) & (HLA.C_1=='hla_c_01_02_01') & (is.na(HLA.C_2))  ))
@@ -77,7 +77,7 @@ write.table(hlasOut, file=paste0('~/TCGA/hlatypes_total_shuffled_',i,'.txt'), se
 # LOHHLA analysis ---------------------------------------------------------
 #############################################################################
 
-dir <- '~/CRCdata/HLA_LOH/TCGA_CRC/'
+dir <- '~/CRCdata/HLA_LOH/TCGA_UCEC/'
 fileList <- list.files(dir, pattern='*.10.DNA.HLAloss*')
 
 lohhla.master <- data.frame(matrix(vector()))
@@ -101,11 +101,15 @@ for (sampleName in fileList){
 lohhla.master$QVal <- p.adjust(lohhla.master$PVal_unique, method='fdr')
 lohhla.master$Label <- sapply(1:nrow(lohhla.master), function(i) labelHLAAI(lohhla.master[i,]))
 lohhla.master$Rel <- sapply(1:nrow(lohhla.master), function(i) labelHLArel(lohhla.master[i,], 5))
+lohhla.master$Label[lohhla.master$Label=='LOH' & !lohhla.master$Rel] <- 'AI'
 
-lohhla.master <- subset(lohhla.master, Rel==T)
-# Requires clinical information compiled!
-anal <- analyseLohhla(lohhla.master, clin.df)
-lohhla.patients <- anal$pat
+# Filter out unreliable ones
+#lohhla.master <- subset(lohhla.master, Rel==T)
+
+lohhla.signif <- lohhla.master[!is.na(lohhla.master$PVal_unique),]
+lohhla.signif <- lohhla.signif[lohhla.signif$PVal_unique<0.01,]
+
+lohhla.patients <- analyseLohhla(lohhla.master)
 
 # If mutations were also detected, compare LOH and mutation status
 lohhla.patients$MUT <- sapply(lohhla.patients$ID, function(x) x %in% muthla.signif$individual)
@@ -178,29 +182,31 @@ correctHeader <- c('individual', 'contig', 'position', 'context', 'ref_allele', 
 
 # Read in all polysolver HLA mutation predictions
 noMutPreds <- c()
-for (dir in dirList){
-  sampleList <- list.files(dir, pattern='*')
-  for (sample in sampleList){
-    hlaList <- list.files(paste0(dir, '/', sample), pattern='*.mutect.unfiltered.annotated')
+noMut <- c()
+noIndel <- c()
+
+  hlaList <- list.files(paste0('~/CRCdata/HLA_MUT/TCGA_', canc), pattern='*.mutect.unfiltered.annotated')
     if (length(hlaList)==0){noMutPreds = c(noMutPreds, sample)}
     for (hla in hlaList){
       muthla <- tryCatch(
-        {read.table(paste0(dir,'/', sample,'/', hla), stringsAsFactors = F, header=F, skip=1, sep='\t')},
+        {read.table(paste0('~/CRCdata/HLA_MUT/TCGA_',canc,'/',hla), stringsAsFactors = F, header=F, skip=1, sep='\t')},
         error=function(e){return(NA)}
       )
       if (!is.na(muthla)){
         names(muthla) <- correctHeader
         muthla.master <- rbind(muthla.master, muthla)
       }
+      else{noMut = c(noMut, substr(hla,1,12))}
     }
-    hlaList2 <- list.files(paste0(dir, '/', sample), pattern='*.strelka_indels.unfiltered.annotated')
+    hlaList2 <- list.files(paste0('~/CRCdata/HLA_MUT/TCGA_', canc), pattern='*.strelka_indels.unfiltered.annotated')
     for (hla in hlaList2){
-    indels.tmp <- read.table(paste0(dir, '/', sample, '/', hla), stringsAsFactors = F, header=T, sep='\t')
+    indels.tmp <- read.table(paste0('~/CRCdata/HLA_MUT/TCGA_',canc,'/',hla), stringsAsFactors = F, header=T, sep='\t')
     if(nrow(indels.tmp)>0){print('Woohoo')}
+    else{noIndel = c(noIndel, substr(hla,1,12))}
     }
-  }
-}
 
+write.table(muthla.master, file=paste0('~/Dropbox/Code/TCGA/',canc,'/',canc,'_MUTHLA_master_file.txt'),
+                   sep='\t',row.names=F,quote=F)
 # Pull out nonsynonymous, protein changing mutations
 muthla.signif <- subset(muthla.master, protein_change!=-1)
 muthla.signif$nonsyn <- sapply(muthla.signif$protein_change, function(x) substr(x,3,3) != substr(x, nchar(x), nchar(x)))
@@ -211,8 +217,8 @@ muthla.signif <- subset(muthla.signif, nonsyn)
 # Gene expression ---------------------------------------------------------
 ############################################################################
 
-tcga.tpm <- read.table('~/TCGA/CRC_RNA_expression.tpm', stringsAsFactors = F, header=T)
-tcga.normal.tpm <- read.table('~/TCGA/Normal_colon_samples.tpm', stringsAsFactors = F, header=T, row.names=1)
+tcga.tpm <- read.table(paste0('TCGA/',canc,'/',canc,'_RNA_expression.tpm'), stringsAsFactors = F, header=T,row.names=1)
+tcga.normal.tpm <- read.table(paste0('TCGA/',canc,'/',canc,'_RNA_normal.tpm'), stringsAsFactors = F, header=T, row.names=1)
 
 # Define immune escape genes in table
 pdl <- 'ENSG00000120217'
@@ -232,6 +238,7 @@ pdl.over <- names(exprpdl)[exprpdl > (mean(exprpdl.norm)+2*sd(exprpdl.norm))]
 # Define CTLA-4 expression and define over-expressed
 exprctla <- sapply(tcga.tpm[ctla,], function(x) log10(x+1))
 exprctla.norm <- sapply(tcga.normal.tpm[ctla,], function(x) log10(x+1))
+exprctla.norm <- exprctla.norm[exprctla.norm<0.9] #get rid of clear outlier
 ggplot(data.frame(value=exprctla), aes(x=value)) + geom_density(colour='firebrick3') +
   geom_density(data=data.frame(value=exprctla.norm), aes(x=value)) +
   geom_vline(xintercept=(mean(exprctla.norm)+2*sd(exprctla.norm)))
@@ -244,15 +251,6 @@ ggplot(data.frame(c=exprctla,p=exprpdl), aes(x=p, y=c)) + geom_point() +
   geom_vline(xintercept=(mean(exprpdl.norm)+2*sd(exprpdl.norm)))
 
 
-# Add to HLA LOH table
-lohhla.patients$PDL <- exprpdl[match(gsub('-','.',lohhla.patients$ID), names(exprpdl))]
-ggplot(na.omit(lohhla.patients), aes(x=MSI, y=PDL, fill=MSI)) + geom_violin() +
-  scale_y_continuous(trans='log10') + stat_compare_means()
-lohhla.patients$CTLA <- exprpdl[match(gsub('-','.',lohhla.patients$ID), names(exprpdl))]
-ggplot(na.omit(lohhla.patients), aes(x=MSI, y=CTLA, fill=MSI)) + geom_violin() +
-  scale_y_continuous(trans='log10') + stat_compare_means()
-
-
 #############################################################################
 # Compile escape table and make summary plots -----------------------------
 #############################################################################
@@ -261,19 +259,28 @@ ggplot(na.omit(lohhla.patients), aes(x=MSI, y=CTLA, fill=MSI)) + geom_violin() +
 lohhla.master$region <- gsub('.tumour', '', lohhla.master$region)
 lohhla.ai <- subset(lohhla.master, PVal_unique<0.01)
 lohhla.loh <- subset(lohhla.ai, Label=='LOH')
+muthla.uniq <- muthla.signif[!duplicated(paste0(muthla.signif$individual, muthla.signif$contig)),]
+#escape.df <- data.frame(Patient = unique(lohhla.master$region),
+#                        HLA_LOH = NA, HLA_MUT=NA, B2M_MUT=0, AI=NA,
+#                        PDL1 = NA, CTLA4=NA,MSI=NA)
+escape.df <- read.table(paste0('TCGA/',canc,'/',canc,'_escape_master_file.txt'),
+                        sep='\t', header=T, stringsAsFactors = F)
+clin.df <- read.table(paste0('TCGA/',canc,'/',canc,'_clinical_master_file.txt'),
+          sep='\t', header=T, stringsAsFactors = F)
 
 for (pat in unique(lohhla.ai$region)){ escape.df[escape.df$Patient==pat, 'AI'] <- paste0(lohhla.ai[lohhla.ai$region==pat,'LossAllele'], collapse=',') }
 
 for (pat in unique(lohhla.loh$region)){ escape.df[escape.df$Patient==pat, 'HLA_LOH'] <- paste0(lohhla.loh[lohhla.loh$region==pat,'LossAllele'], collapse=',') }
 
-for (pat in unique(muthla.signif$individual)){ escape.df[escape.df$Patient==pat, 'HLA_MUT'] <- paste0(muthla.signif[muthla.signif$individual==pat,'contig'], collapse=',') }
+for (pat in unique(muthla.uniq$individual)){ escape.df[escape.df$Patient==pat, 'HLA_MUT'] <- paste0(muthla.uniq[muthla.uniq$individual==pat,'contig'], collapse=',') }
 
 escape.df$B2M_MUT <- clin.df[match(escape.df$Patient, clin.df$Patient), 'B2M']
 escape.df$WDFY4_MUT <- clin.df[match(escape.df$Patient, clin.df$Patient), 'WDFY4']
 escape.df$PDL1 <- exprpdl[match(gsub('-', '.',escape.df$Patient), names(exprpdl))] > mean(exprpdl.norm)+2*sd(exprpdl.norm)
 escape.df$CTLA4 <- exprctla[match(gsub('-', '.',escape.df$Patient), names(exprctla))] > mean(exprctla.norm)+2*sd(exprctla.norm)
-escape.df$CYT <- cyts[match(gsub('-', '.',escape.df$Patient), names(cyts))]
 escape.df$MSI <- clin.df[match(escape.df$Patient, clin.df$Patient), 'MSI']
+
+write.table(escape.df, paste0('TCGA/',canc,'/',canc,'_escape_master_file.txt'), sep='\t', row.names=F,quote=F)
 
 # HLA ggplot heatmap ---------------------------------------------------------
 

@@ -1,7 +1,16 @@
-library(purrr)
-library(ggpubr)
-library(scales)
-library(reshape2)
+library('ggplot2'); library('reshape2'); library(ggpubr); library(gridExtra); require(RColorBrewer); require(scales)
+
+theme_mypub <- function(base_size = 14,
+                        base_family = ""){
+  theme_bw(base_size = base_size, 
+           base_family = base_family) %+replace%
+    theme(
+      panel.grid.major = element_blank(),   
+      panel.grid.minor = element_blank(),   
+      
+      complete = TRUE
+    )
+}
 
 
 # Neoantigen summary functions --------------------------------------------
@@ -55,24 +64,6 @@ subsetEpTable <- function(epTable, sample, uniqueMutations=F){
     cat('\n Number of unique mutations giving rise to epitopes: ', nrow(epitopes))
   }
   return(epitopes)
-}
-
-# Compute VAF values from exonic files with information NR:NV
-computeVaf <- function(readData, colInd, nrInd, nvInd){
-  readInfo <- strsplit(readData[,colInd], ':')
-  vafs <- as.numeric(map(readInfo, nvInd))/as.numeric(map(readInfo, nrInd))
-  return(vafs)
-}
-
-# Compute VAF values from exonic files with allelic depth information: ref,alt
-computeVafAD <- function(readData, colInd){
-  readVec <- readData[,colInd]
-  readVec <- readVec[readVec!='.']
-  readInfo <- strsplit(readVec, ':')
-  AD <- map(readInfo, 2)
-  ADvec <- sapply(AD, function(i) strsplit(i, ','))
-  vafs <- as.numeric(map(ADvec, 2))/(as.numeric(map(ADvec, 1))+as.numeric(map(ADvec,2)))
-  return(vafs)
 }
 
 # Count number of antigenic mutations per regions and categories
@@ -164,6 +155,35 @@ processSummaryOfSampleSet <- function(dir, epTable, prefix){
 }
 
 
+# VAF functions -----------------------------------------------------------
+
+# Get CNA level of a particular mutations from vcf info of mutation and CNA file
+getCNAofMut <- function(cna, mutLine){
+  cnstate <- cna[cna$Chromosome==mutLine$Chr & (cna$Start < mutLine$Start) & (cna$End > mutLine$Start),
+                 'Segment_Mean']
+  if (length(cnstate)==0){return(NA)}
+  return(cnstate)
+}
+
+# Compute VAF values from exonic files with information NR:NV
+computeVaf <- function(readData, colInd, nrInd, nvInd){
+  readInfo <- strsplit(readData[,colInd], ':')
+  vafs <- as.numeric(map(readInfo, nvInd))/as.numeric(map(readInfo, nrInd))
+  return(vafs)
+}
+
+# Compute VAF values from exonic files with allelic depth information: ref,alt
+computeVafAD <- function(readData, colInd){
+  readVec <- readData[,colInd]
+  readVec <- readVec[readVec!='.']
+  readInfo <- strsplit(readVec, ':')
+  AD <- map(readInfo, 2)
+  ADvec <- sapply(AD, function(i) strsplit(i, ','))
+  vafs <- as.numeric(map(ADvec, 2))/(as.numeric(map(ADvec, 1))+as.numeric(map(ADvec,2)))
+  return(vafs)
+}
+
+
 # HLA processing functions ------------------------------------------------
 
 # Create a label for filtering depending on output of CN measurement
@@ -198,7 +218,7 @@ labelHLArel <- function(line, mincov){
 }
 
 # Evaluate and filter results of LOHHLA output
-analyseLohhla <- function(lohhla.master, clin.df){
+analyseLohhla <- function(lohhla.master){
   lohhla.signif <- lohhla.master[!is.na(lohhla.master$PVal_unique),]
   lohhla.signif <- lohhla.signif[lohhla.signif$PVal_unique<0.01,]
   
@@ -215,8 +235,5 @@ analyseLohhla <- function(lohhla.master, clin.df){
                                  function(x) sum(lohhla.master[lohhla.master$region==x, 'Label']!='none')==0)
   lohhla.patients$HIGH <- sapply(row.names(lohhla.patients),
                                  function(x) ('gain' %in% lohhla.master[lohhla.master$region==x, 'Label']))
-  
-  lohhla.patients$MSI <- clin.df[match(lohhla.patients$ID, clin.df$Patient), 'MSI']=='MSI-H'
-  lohhla.patients$HYP <- clin.df[match(lohhla.patients$ID, clin.df$Patient), 'Hypermut']==1
-  return(list(sig=lohhla.signif, pat=lohhla.patients))
+  return(lohhla.patients)
 }
