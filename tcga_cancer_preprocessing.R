@@ -75,8 +75,8 @@ recoTable <- read.table(paste0(dir,'/Neopred_results/PredictedRecognitionPotenti
                         stringsAsFactors = F, header=T)
 
 # Filter according to RecognitionPotential table and sample quality
-epTable$AntigenID <- paste0(epTable$Sample,':',epTable$peptide)
-recoTable$AntigenID <- paste0(recoTable$Sample,':',recoTable$MutantPeptide)
+epTable$AntigenID <- paste0(epTable$Sample,':',epTable$Identity,':',epTable$peptide)
+recoTable$AntigenID <- paste0(recoTable$Sample,':',recoTable$Mutation,':',recoTable$MutantPeptide)
 # plot recognition potential distribution
 ggplot(recoTable, aes(x=NeoantigenRecognitionPotential)) + geom_density() +
   theme_mypub() + scale_x_log10(limits=c(1e-6,1e3)) 
@@ -141,6 +141,18 @@ for (samp in unique(allMutVAFs$Sample)){
   allMutVAFs[allMutVAFs$Sample==samp,]$Gene <- sapply(exn$V3, function(x) unlist(strsplit(x, ':'))[1])
 }
 
+write.table(allMutVAFs, file=paste0('TCGA/',canc,'/',canc,'_exonicVAF_master_file.txt'),sep='\t',quote=F, row.names=F)
+
+# Add candidate info to exonic table
+
+lineIDsTot <- c()
+for (samp in unique(allMutVAFs$Sample)){
+f <- scan(paste0(dir,'/Neopred_results/fastaFiles/',samp,'.tmp.10.fasta'), what='character()')
+lineIDs <- gsub('>','',sapply(f[grepl('>',f)], function(x) unlist(strsplit(x,';'))[1]))
+lineIDsTot <- c(lineIDsTot, paste0(samp,':',lineIDs))
+}
+
+allMutVAFs$Candidate <- paste0(allMutVAFs$Sample,':',allMutVAFs$LineID) %in% lineIDsTot
 write.table(allMutVAFs, file=paste0('TCGA/',canc,'/',canc,'_exonicVAF_master_file.txt'),sep='\t',quote=F, row.names=F)
 
 
